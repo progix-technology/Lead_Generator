@@ -1,0 +1,169 @@
+import urllib.request
+import json
+import logging
+import asyncio
+from typing import Dict, Optional
+from app.config.settings import settings
+
+logger = logging.getLogger(__name__)
+
+def make_openrouter_request(prompt: str, response_format_json: bool = False, max_tokens: int = 500, custom_api_key: Optional[str] = None) -> Optional[str]:
+    api_key = custom_api_key or settings.OPENROUTER_API_KEY
+    if not api_key:
+        logger.warning("No OpenRouter API key provided (neither dynamic nor .env).")
+        return None
+        
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://leadgenpro.local",
+        "X-Title": "LeadGen Pro"
+    }
+    
+    models = [
+        "google/gemini-2.5-flash",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "google/gemma-4-31b-it:free"
+    ]
+    
+    last_error = ""
+    for model in models:
+        data = {
+            "model": model,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": max_tokens
+        }
+        if response_format_json and "llama" not in model:
+            data["response_format"] = {"type": "json_object"}
+            
+        try:
+            req_body = json.dumps(data).encode("utf-8")
+            req = urllib.request.Request(url, data=req_body, headers=headers, method="POST")
+            with urllib.request.urlopen(req, timeout=10) as response:
+                res_body = response.read().decode("utf-8")
+                res_data = json.loads(res_body)
+                choices = res_data.get("choices", [])
+                if choices:
+                    content = choices[0]["message"]["content"]
+                    # Double check if choice had a mid-stream rate limit error
+                    if choices[0].get("finish_reason") == "error" or not content or len(content.strip()) < 2:
+                        logger.warning(f"Model {model} returned error/empty content in OpenRouter stream. Trying next...")
+                        continue
+                    return content
+        except Exception as e:
+            logger.warning(f"OpenRouter model {model} failed: {e}. Trying next...")
+            last_error = str(e)
+            
+    logger.error(f"All OpenRouter models failed. Last error: {last_error}")
+    return None
+
+def get_fallback_template(agency_name: str, services: str, cta: str) -> Dict[str, str]:
+    return {
+        "subject": "Quick question for {{company}} about their website",
+        "body": f"Hi {{first_name}},\n\nI noticed your website {{website}} has a few technical issues that might be affecting your search rankings.\n\nAt {agency_name}, we specialize in {services} and help local businesses get more clients.\n\nWould you be open to {cta}?\n\nBest,\nTeam {agency_name}"
+    }
+
+def generate_ai_email_template_sync(
+    agency_name: str,
+    services: str,
+    portfolio: str,
+    cta: str,
+    custom_api_key: Optional[str] = None
+) -> Dict[str, str]:
+    """Generates a personalized cold email template using OpenRouter AI."""
+    api_key = custom_api_key or settings.OPENROUTER_API_KEY
+    if not api_key:
+        logger.warning("No OpenRouter API key configured. Falling back to default static template.")
+        return get_fallback_template(agency_name, services, cta)
+        
+    prompt = f"""
+    Write a highly professional, short cold outreach email template for a agency.
+    Our details:
+    - Agency Name: {agency_name}
+    - Core Services: {services}
+    - Special Case Study / Portfolio / Offer details: {portfolio}
+    - Call to Action (CTA): {cta}
+
+    The output MUST be a JSON object containing:
+    1. "subject": "a catchy subject line targeting the business"
+    2. "body": "a persuasive, short email body template"
+
+    You MUST use these exact bracket placeholders in the generated text:
+    - {{{{first_name}}}} for the prospect's first name
+    - {{{{company}}}} for the prospect's company name
+    - {{{{website}}}} for the prospect's website url
+    - {{{{industry}}}} for the prospect's industry
+    - {{{{location}}}} for the prospect's location
+
+    Guidelines:
+    - Keep it short, crisp and clear.
+    - Avoid generic spam phrases.
+    - Sound genuine, helpful and real.
+    
+    Return ONLY a JSON block, nothing else. Format:
+    {{"subject": "...", "body": "..."}}
+    """
+    
+    res = make_openrouter_request(prompt, response_format_json=True, max_tokens=600, custom_api_key=api_key)
+    if res:
+        try:
+            clean_res = res.strip()
+            if clean_res.startswith("```"):
+                clean_res = clean_res.split("json")[-1].split("```")[0].strip()
+            parsed = json.loads(clean_res)
+            return {
+                "subject": parsed.get("subject", "Quick question about {{website}}"),
+                "body": parsed.get("body", "")
+            }
+        except Exception as e:
+            logger.error(f"Failed to parse AI template JSON output: {e}")
+            
+    return get_fallback_template(agency_name, services, cta)
+
+async def generate_ai_email_template(
+    agency_name: str,
+    services: str,
+    portfolio: str,
+    cta: str,
+    custom_api_key: Optional[str] = None
+) -> Dict[str, str]:
+    """Asynchronous wrapper for OpenRouter template generation."""
+    return await asyncio.to_thread(generate_ai_email_template_sync, agency_name, services, portfolio, cta, custom_api_key)
+
+def clean_first_name_with_ai_sync(email: str, company_name: str, custom_api_key: Optional[str] = None) -> Optional[str]:
+    """Uses OpenRouter to extract/format a clean first name or fallback team name."""
+    prompt = f"""
+    Given the business name "{company_name}" and their email address "{email}", 
+    determine a clean, professional, personalized greeting name to use after "Hi " or "Dear ".
+    
+    Instructions:
+    1. If the email prefix looks like a personal name (e.g. "john.smith@gmail.com" or "kazimkilic81@gmail.com" or "sarah@company.com"), 
+       extract just the clean personal first name capitalized (e.g. "John", "Kazim", "Sarah"). Strip any numbers, suffixes or special characters.
+    2. If the email prefix is generic (e.g. "info@", "contact@", "support@", "admin@", "sales@", "server@", "hello@", "team@"), 
+       use the company name + " Team" (e.g. "Gerson Bakery Team" or "Narala Bakery Team").
+    3. Keep it brief.
+    
+    The output MUST be a JSON object containing a single key "first_name":
+    {{"first_name": "extracted_name"}}
+    
+    Return ONLY a JSON block, nothing else. Format:
+    {{"first_name": "..."}}
+    """
+    
+    res = make_openrouter_request(prompt, response_format_json=True, max_tokens=100, custom_api_key=custom_api_key)
+    if res:
+        try:
+            clean_res = res.strip()
+            if clean_res.startswith("```"):
+                clean_res = clean_res.split("json")[-1].split("```")[0].strip()
+            parsed = json.loads(clean_res)
+            return parsed.get("first_name")
+        except Exception as e:
+            logger.error(f"Failed to parse AI greeting JSON output: {e}")
+    return None
+
+async def clean_first_name_with_ai(email: str, company_name: str, custom_api_key: Optional[str] = None) -> Optional[str]:
+    return await asyncio.to_thread(clean_first_name_with_ai_sync, email, company_name, custom_api_key)

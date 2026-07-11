@@ -23,39 +23,83 @@ SYNONYMS = {
 
 async def geocode_location(location: str) -> Optional[Tuple[float, float, float, float]]:
     """
-    Geocodes a location string using Google Geocoding API to get its bounding box.
+    Geocodes a location string using a multi-layered approach:
+    1. Google Geocoding API (if active on API Key)
+    2. Google Places API (New) Text Search viewport extraction (since Places API is enabled)
+    3. OpenStreetMap Nominatim (fallback)
     Returns: (south_lat, north_lat, west_lng, east_lng)
     """
-    if not location or not settings.GOOGLE_PLACES_API_KEY:
+    if not location:
         return None
-        
-    url = "https://maps.googleapis.com/maps/api/geocode/json"
-    params = {
-        "address": location,
-        "key": settings.GOOGLE_PLACES_API_KEY
-    }
-    
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, params=params, timeout=5.0)
-            if response.status_code == 200:
-                data = response.json()
-                results = data.get("results", [])
-                if results:
-                    geometry = results[0].get("geometry", {})
-                    # Try bounds first, fall back to viewport
-                    viewport = geometry.get("bounds") or geometry.get("viewport")
-                    if viewport:
-                        northeast = viewport.get("northeast", {})
-                        southwest = viewport.get("southwest", {})
-                        south_lat = southwest.get("lat") or southwest.get("latitude")
-                        north_lat = northeast.get("lat") or northeast.get("latitude")
-                        west_lng = southwest.get("lng") or southwest.get("longitude")
-                        east_lng = northeast.get("lng") or northeast.get("longitude")
+
+    # 1. Try Google Geocoding API
+    if settings.GOOGLE_PLACES_API_KEY:
+        url = "https://maps.googleapis.com/maps/api/geocode/json"
+        params = {"address": location, "key": settings.GOOGLE_PLACES_API_KEY}
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(url, params=params, timeout=5.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("status") == "OK" and data.get("results"):
+                        geometry = data["results"][0].get("geometry", {})
+                        viewport = geometry.get("bounds") or geometry.get("viewport")
+                        if viewport:
+                            northeast = viewport.get("northeast", {})
+                            southwest = viewport.get("southwest", {})
+                            south_lat = southwest.get("lat") or southwest.get("latitude")
+                            north_lat = northeast.get("lat") or northeast.get("latitude")
+                            west_lng = southwest.get("lng") or southwest.get("longitude")
+                            east_lng = northeast.get("lng") or northeast.get("longitude")
+                            if all(v is not None for v in [south_lat, north_lat, west_lng, east_lng]):
+                                return (float(south_lat), float(north_lat), float(west_lng), float(east_lng))
+        except Exception as e:
+            logger.warning(f"Google Geocoding API failed: {e}")
+
+    # 2. Try Google Places API (New) Text Search to extract viewport coordinates
+    if settings.GOOGLE_PLACES_API_KEY:
+        url = "https://places.googleapis.com/v1/places:searchText"
+        headers = {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": settings.GOOGLE_PLACES_API_KEY,
+            "X-Goog-FieldMask": "places.viewport"
+        }
+        payload = {"textQuery": location, "pageSize": 1}
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(url, headers=headers, json=payload, timeout=6.0)
+                if response.status_code == 200:
+                    data = response.json()
+                    places = data.get("places", [])
+                    if places:
+                        viewport = places[0].get("viewport", {})
+                        low = viewport.get("low", {})
+                        high = viewport.get("high", {})
+                        south_lat = low.get("latitude")
+                        north_lat = high.get("latitude")
+                        west_lng = low.get("longitude")
+                        east_lng = high.get("longitude")
                         if all(v is not None for v in [south_lat, north_lat, west_lng, east_lng]):
                             return (float(south_lat), float(north_lat), float(west_lng), float(east_lng))
+        except Exception as e:
+            logger.warning(f"Google Places API geocoding fallback failed: {e}")
+
+    # 3. Try OpenStreetMap Nominatim as final fallback
+    url = "https://nominatim.openstreetmap.org/search"
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    params = {"q": location, "format": "json", "limit": 1}
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, params=params, timeout=5.0)
+            if response.status_code == 200:
+                data = response.json()
+                if data and len(data) > 0:
+                    bbox = data[0].get("boundingbox")
+                    if bbox and len(bbox) == 4:
+                        return (float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3]))
     except Exception as e:
-        logger.error(f"Google Geocoding error for location '{location}': {e}")
+        logger.warning(f"OSM Nominatim geocoding fallback failed: {e}")
+
     return None
 
 async def run_google_maps_playwright_scraper(query: str, location: str) -> List[Dict[str, Any]]:
@@ -209,7 +253,8 @@ async def search_companies_google_places(
             }
         }
     else:
-        payload["textQuery"] = f"{query} in {location}" if location else query
+        # Avoid using 'in' in searchText queries to bypass Google semantic query parsing failures
+        payload["textQuery"] = f"{query}, {location}" if location else query
         
     if page_token:
         payload["pageToken"] = page_token

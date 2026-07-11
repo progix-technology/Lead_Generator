@@ -20,6 +20,12 @@ class AutomationSettingsUpdate(BaseModel):
     categories: Optional[List[str]] = None
     locations: Optional[List[str]] = None
     facebook_only: Optional[bool] = None
+    daily_email_limit: Optional[int] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_email: Optional[str] = None
+    smtp_password: Optional[str] = None
+    openrouter_api_key: Optional[str] = None
 
 @router.get("/settings", response_model=Dict[str, Any])
 async def get_settings(

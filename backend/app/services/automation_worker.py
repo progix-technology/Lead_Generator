@@ -58,15 +58,16 @@ async def run_automation_cycle(db) -> Dict[str, Any]:
     co_service = CompanyService(co_repo)
 
     current_settings = await repo.get_settings()
+    daily_limit = current_settings.get("daily_email_limit", 20)
     
     # 1. Check daily limit
     sent_today = await repo.count_records_today()
-    log_progress(f"Autopilot: Daily limit check. Emails sent today: {sent_today}/20")
-    if sent_today >= 20:
-        log_progress("Autopilot: Daily limit of 20 emails already reached for today. Cycle stopped.")
+    log_progress(f"Autopilot: Daily limit check. Emails sent today: {sent_today}/{daily_limit}")
+    if sent_today >= daily_limit:
+        log_progress(f"Autopilot: Daily limit of {daily_limit} emails already reached for today. Cycle stopped.")
         return {"status": "skipped", "reason": "daily_limit_reached"}
 
-    limit_to_send = 20 - sent_today
+    limit_to_send = daily_limit - sent_today
     log_progress(f"Autopilot: Autopilot will target sending up to {limit_to_send} emails in this run.")
 
     # 2. Get search terms based on rotation index

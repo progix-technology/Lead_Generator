@@ -12,6 +12,7 @@ export default function AutomatedCampaigns() {
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [facebookOnly, setFacebookOnly] = useState(false);
+  const [dailyEmailLimit, setDailyEmailLimit] = useState(20);
   const [newCategory, setNewCategory] = useState('');
   const [newLocation, setNewLocation] = useState('');
   
@@ -53,6 +54,7 @@ export default function AutomatedCampaigns() {
       setCategories(settings.categories || []);
       setLocations(settings.locations || []);
       setFacebookOnly(!!settings.facebook_only);
+      setDailyEmailLimit(settings.daily_email_limit || 20);
       
       // Fetch history records
       const history = await automationService.getRecords(0, 100);
@@ -102,7 +104,8 @@ export default function AutomatedCampaigns() {
         body_template: bodyTemplate,
         categories,
         locations,
-        facebook_only: facebookOnly
+        facebook_only: facebookOnly,
+        daily_email_limit: parseInt(dailyEmailLimit) || 20
       });
       setSuccessMsg('Autopilot configurations saved successfully!');
       setTimeout(() => setSuccessMsg(''), 4000);
@@ -125,7 +128,8 @@ export default function AutomatedCampaigns() {
         body_template: bodyTemplate,
         categories,
         locations,
-        facebook_only: facebookOnly
+        facebook_only: facebookOnly,
+        daily_email_limit: parseInt(dailyEmailLimit) || 20
       });
       setSuccessMsg(checked ? 'Autopilot is now active! 🤖⚡' : 'Autopilot has been disabled.');
       setTimeout(() => setSuccessMsg(''), 4000);
@@ -326,11 +330,11 @@ export default function AutomatedCampaigns() {
         <Card className="flex flex-col justify-between">
           <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Daily Outreach Progress</span>
           <div className="flex items-end justify-between mt-2">
-            <span className="text-3xl font-extrabold text-gray-900">{todayCount} <span className="text-sm font-normal text-gray-400">/ 20 sent today</span></span>
-            <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">Limit: 20/day</span>
+            <span className="text-3xl font-extrabold text-gray-900">{todayCount} <span className="text-sm font-normal text-gray-400">/ {dailyEmailLimit} sent today</span></span>
+            <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">Limit: {dailyEmailLimit}/day</span>
           </div>
           <div className="w-full bg-gray-100 h-2 rounded-full mt-3 overflow-hidden">
-            <div className="bg-blue-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((todayCount/20)*100, 100)}%` }}></div>
+            <div className="bg-blue-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((todayCount/dailyEmailLimit)*100, 100)}%` }}></div>
           </div>
         </Card>
 
@@ -355,12 +359,27 @@ export default function AutomatedCampaigns() {
               <span className="text-xs text-gray-400">Pitches sent exclusively to Facebook leads.</span>
             </div>
 
-            <Input 
-              label="Autopilot Subject Line" 
-              placeholder="Helping {{company}} strengthen its online presence" 
-              value={subjectTemplate}
-              onChange={(e) => setSubjectTemplate(e.target.value)}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-3">
+                <Input 
+                  label="Autopilot Subject Line" 
+                  placeholder="Helping {{company}} strengthen its online presence" 
+                  value={subjectTemplate}
+                  onChange={(e) => setSubjectTemplate(e.target.value)}
+                />
+              </div>
+              <div>
+                <Input 
+                  label="Daily Email Limit" 
+                  type="number"
+                  min="1"
+                  max="500"
+                  placeholder="20"
+                  value={dailyEmailLimit}
+                  onChange={(e) => setDailyEmailLimit(e.target.value)}
+                />
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="md:col-span-3">
@@ -431,7 +450,7 @@ export default function AutomatedCampaigns() {
                 </div>
                 <div className="flex gap-2">
                   <span className="font-bold text-blue-400">5.</span>
-                  <p>Outreach emails are sent automatically. The daily limit is capped at **20 sent emails per day** to preserve domain IP reputation.</p>
+                  <p>Outreach emails are sent automatically. The daily limit is capped at **{dailyEmailLimit} sent emails per day** to preserve domain IP reputation.</p>
                 </div>
               </div>
             </div>

@@ -70,6 +70,30 @@ class AutomationRepository:
                 doc["facebook_only"] = False
                 update_data["facebook_only"] = False
                 needs_update = True
+            if "daily_email_limit" not in doc:
+                doc["daily_email_limit"] = 20
+                update_data["daily_email_limit"] = 20
+                needs_update = True
+            if "smtp_host" not in doc:
+                doc["smtp_host"] = "smtp.gmail.com"
+                update_data["smtp_host"] = "smtp.gmail.com"
+                needs_update = True
+            if "smtp_port" not in doc:
+                doc["smtp_port"] = 587
+                update_data["smtp_port"] = 587
+                needs_update = True
+            if "smtp_email" not in doc:
+                doc["smtp_email"] = ""
+                update_data["smtp_email"] = ""
+                needs_update = True
+            if "smtp_password" not in doc:
+                doc["smtp_password"] = ""
+                update_data["smtp_password"] = ""
+                needs_update = True
+            if "openrouter_api_key" not in doc:
+                doc["openrouter_api_key"] = ""
+                update_data["openrouter_api_key"] = ""
+                needs_update = True
             if needs_update:
                 await self.settings_col.update_one({"_id": doc["_id"]}, {"$set": update_data})
         return self._format_id(doc)

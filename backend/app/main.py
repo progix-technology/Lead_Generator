@@ -82,3 +82,13 @@ async def health_check():
         "app_name": settings.APP_NAME,
         "environment": settings.ENVIRONMENT
     }
+
+@app.get("/", tags=["Health"])
+async def root():
+    """
+    Root endpoint to confirm API status.
+    """
+    return {
+        "message": "LeadGen Pro API is running!",
+        "status": "healthy"
+    }

@@ -23,33 +23,39 @@ SYNONYMS = {
 
 async def geocode_location(location: str) -> Optional[Tuple[float, float, float, float]]:
     """
-    Geocodes a location string using OpenStreetMap Nominatim to get its bounding box.
+    Geocodes a location string using Google Geocoding API to get its bounding box.
     Returns: (south_lat, north_lat, west_lng, east_lng)
     """
-    if not location:
+    if not location or not settings.GOOGLE_PLACES_API_KEY:
         return None
         
-    url = "https://nominatim.openstreetmap.org/search"
-    headers = {
-        "User-Agent": "LeadGenProApp/1.0 (contact@leadgenpro.com)"
-    }
+    url = "https://maps.googleapis.com/maps/api/geocode/json"
     params = {
-        "q": location,
-        "format": "json",
-        "limit": 1
+        "address": location,
+        "key": settings.GOOGLE_PLACES_API_KEY
     }
     
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, params=params, timeout=5.0)
+            response = await client.get(url, params=params, timeout=5.0)
             if response.status_code == 200:
                 data = response.json()
-                if data and len(data) > 0:
-                    bbox = data[0].get("boundingbox")
-                    if bbox and len(bbox) == 4:
-                        return (float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3]))
+                results = data.get("results", [])
+                if results:
+                    geometry = results[0].get("geometry", {})
+                    # Try bounds first, fall back to viewport
+                    viewport = geometry.get("bounds") or geometry.get("viewport")
+                    if viewport:
+                        northeast = viewport.get("northeast", {})
+                        southwest = viewport.get("southwest", {})
+                        south_lat = southwest.get("lat") or southwest.get("latitude")
+                        north_lat = northeast.get("lat") or northeast.get("latitude")
+                        west_lng = southwest.get("lng") or southwest.get("longitude")
+                        east_lng = northeast.get("lng") or northeast.get("longitude")
+                        if all(v is not None for v in [south_lat, north_lat, west_lng, east_lng]):
+                            return (float(south_lat), float(north_lat), float(west_lng), float(east_lng))
     except Exception as e:
-        logger.error(f"Geocoding error for location '{location}': {e}")
+        logger.error(f"Google Geocoding error for location '{location}': {e}")
     return None
 
 async def run_google_maps_playwright_scraper(query: str, location: str) -> List[Dict[str, Any]]:

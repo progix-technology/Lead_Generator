@@ -276,8 +276,36 @@ async def run_automation_scheduler():
                 is_catchup_window = (12 <= current_hour < 22) and (sent_today < daily_limit)
                 
                 if is_active_window or is_catchup_window:
-                    logger.info(f"Autopilot: Running cycle (Hour: {current_hour}, Sent today: {sent_today}/{daily_limit})...")
-                    await run_automation_cycle(db)
+                    logger.info(f"Autopilot: Starting automated batch run (Hour: {current_hour}, Sent today: {sent_today}/{daily_limit})...")
+                    
+                    batch_sent = 0
+                    batch_target = 5  # Target sending at least 5 emails in this scheduler wake-up run
+                    max_attempts = 5  # Maximum different target query attempts to prevent API/loop exhaustion
+                    attempts = 0
+                    
+                    while batch_sent < batch_target and attempts < max_attempts:
+                        # Re-read daily limits status mid-batch
+                        current_sent_today = await repo.count_records_today()
+                        if current_sent_today >= daily_limit:
+                            logger.info("Autopilot: Daily email limit reached mid-batch. Halting batch run.")
+                            break
+                            
+                        logger.info(f"Autopilot: Batch run attempt {attempts + 1}/{max_attempts} (Sent in this batch: {batch_sent}/{batch_target})")
+                        cycle_result = await run_automation_cycle(db)
+                        
+                        cycle_sent = cycle_result.get("sent_count", 0)
+                        batch_sent += cycle_sent
+                        attempts += 1
+                        
+                        if batch_sent >= batch_target:
+                            logger.info(f"Autopilot: Batch target of {batch_target} emails reached. Ending batch run.")
+                            break
+                            
+                        if cycle_sent == 0:
+                            log_progress(f"Autopilot: Cycle sent 0 emails. Auto-switching to next target niche...")
+                            await asyncio.sleep(2) # Small safety gap
+                            
+                    logger.info(f"Autopilot: Batch run completed. Total sent in this run: {batch_sent} over {attempts} attempts.")
                 else:
                     logger.info(f"Autopilot: Outside active/catch-up window (Hour: {current_hour}, Sent: {sent_today}/{daily_limit}). Skipping.")
             else:

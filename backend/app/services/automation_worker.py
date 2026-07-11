@@ -246,6 +246,7 @@ async def run_automation_cycle(db) -> Dict[str, Any]:
             log_progress(f"Autopilot: Error processing lead '{name}': {err}")
 
     log_progress(f"Autopilot: Cycle complete. Scanned: {scanned_count} leads, Sent: {sent_count} emails.")
+    log_progress("Autopilot: Scheduler sleeping for 30 minutes. Next run will start soon...")
     return {"status": "completed", "sent_count": sent_count, "scanned_count": scanned_count}
 
 async def run_automation_scheduler():

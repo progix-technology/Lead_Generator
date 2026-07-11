@@ -303,11 +303,17 @@ export default function AutomatedCampaigns() {
             {consoleLogs.length === 0 ? (
               <div className="text-slate-500 italic">Awaiting worker log dispatch...</div>
             ) : (
-              consoleLogs.map((log, index) => (
-                <div key={index} className="leading-relaxed whitespace-pre-wrap select-text">
-                  {log}
-                </div>
-              ))
+              consoleLogs.map((log, index) => {
+                const isSleeping = log.toLowerCase().includes("sleeping") || log.toLowerCase().includes("sleep");
+                return (
+                  <div 
+                    key={index} 
+                    className={`leading-relaxed whitespace-pre-wrap select-text ${isSleeping ? 'text-blue-400 font-semibold' : 'text-green-400'}`}
+                  >
+                    {log}
+                  </div>
+                );
+              })
             )}
             <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })}></div>
           </div>

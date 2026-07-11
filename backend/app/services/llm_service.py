@@ -182,9 +182,9 @@ def generate_ai_search_query_sync(recent_targets: list, custom_api_key: Optional
     You MUST NOT choose any of these recently targeted combinations (avoid them!): {recent_targets}
     
     Guidelines for high website-less lead conversion:
-    1. Select ONLY small-scale manual labor/home services niches where independent operators frequently run without websites. 
-       - EXCELLENT NICHES: Locksmiths, Towing Services, Junk Removal, Tree Services, Appliance Repair, Drywall Contractors, Concrete Contractors, Fence Contractors, Painting Contractors, Window Cleaning, Carpet Cleaning.
-       - AVOID: Dentists, Veterinarians, Medical clinics, large hotels, major commercial entities (99% of these already have websites).
+    1. Target a balanced mix of these two business types:
+       - HIGH-PAYING PREMIUM CLIENTS (High ticket value): Restaurants, Cafes, Bakeries, Laundry Services, Bars, Gyms, Spas, Hotels, Travel Agencies, Dentists, Biscuit Factories. (Focus on local, independent, or newly opened ones that might lack websites).
+       - EASY VOLUME CLIENTS (Often run without websites): Locksmiths, Towing Services, Junk Removal, Tree Services, Appliance Repair, Drywall Contractors, Concrete Contractors, Fence Contractors, Painting Contractors, Window Cleaning, Carpet Cleaning.
     2. Select smaller or mid-sized US cities, towns, or outer suburbs (population 30k - 150k) in states like TX, FL, NC, OH, GA, MI, PA, etc. 
        - Smaller towns and rural-suburban hubs have much lower website adoption than major metropolitan or tech-heavy cities.
     

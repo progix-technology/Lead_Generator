@@ -28,7 +28,9 @@ class AutomationRepository:
             "Drywall Contractors", "Concrete Contractors", "Fence Contractors", "Moving Companies",
             "Towing Services", "Appliance Repair", "Junk Removal", "Physiotherapists",
             "Chiropractors", "Veterinarians", "Acupuncture Clinics", "Optometrists",
-            "Yoga Studios", "Dance Schools", "Daycare Centers", "Driving Schools", "Tailor Shops"
+            "Yoga Studios", "Dance Schools", "Daycare Centers", "Driving Schools", "Tailor Shops",
+            "Roofing Contractors", "HVAC Services", "Plumbers", "Electricians", "Dentists",
+            "Catering Services", "Auto Repair"
         ]
         default_locations = [
             "Sunnyvale, CA", "Santa Clara, CA", "Mountain View, CA", "Palo Alto, CA",
@@ -58,10 +60,25 @@ class AutomationRepository:
             # Seed fields if missing from existing document, or reset if they have old values
             needs_update = False
             update_data = {}
-            if "categories" not in doc or "Bakeries" in doc.get("categories", []) or "Plumbers" in doc.get("categories", []):
+            if "categories" not in doc:
                 doc["categories"] = default_categories
                 update_data["categories"] = default_categories
                 needs_update = True
+            else:
+                current_cats = doc.get("categories", [])
+                new_additions = [
+                    "Roofing Contractors", "HVAC Services", "Plumbers", "Electricians", 
+                    "Dentists", "Catering Services", "Auto Repair"
+                ]
+                merged_needed = False
+                for a in new_additions:
+                    if a not in current_cats:
+                        current_cats.append(a)
+                        merged_needed = True
+                if merged_needed:
+                    doc["categories"] = current_cats
+                    update_data["categories"] = current_cats
+                    needs_update = True
             if "locations" not in doc or "Kingsburg, CA" in doc.get("locations", []) or "Passaic, NJ" in doc.get("locations", []):
                 doc["locations"] = default_locations
                 update_data["locations"] = default_locations

@@ -31,7 +31,9 @@ CATEGORIES = [
     "Drywall Contractors", "Concrete Contractors", "Fence Contractors", "Moving Companies",
     "Towing Services", "Appliance Repair", "Junk Removal", "Physiotherapists",
     "Chiropractors", "Veterinarians", "Acupuncture Clinics", "Optometrists",
-    "Yoga Studios", "Dance Schools", "Daycare Centers", "Driving Schools", "Tailor Shops"
+    "Yoga Studios", "Dance Schools", "Daycare Centers", "Driving Schools", "Tailor Shops",
+    "Roofing Contractors", "HVAC Services", "Plumbers", "Electricians", "Dentists",
+    "Catering Services", "Auto Repair"
 ]
 LOCATIONS = [
     "Sunnyvale, CA", "Santa Clara, CA", "Mountain View, CA", "Palo Alto, CA",

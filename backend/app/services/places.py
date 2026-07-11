@@ -319,6 +319,11 @@ async def search_companies_google_places(
                 
             data = response.json()
             places = data.get("places", [])
+            if not places:
+                logger.info("Google Places API returned 0 results. Triggering free fallback.")
+                fallback_results = await scrape_google_maps_fallback(query, location)
+                return fallback_results, None
+                
             next_page_token = data.get("nextPageToken")
             
             companies = []

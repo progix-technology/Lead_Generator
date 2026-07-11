@@ -288,8 +288,8 @@ async def run_automation_batch(db, batch_target: int = 5) -> Dict[str, Any]:
             break
             
         if cycle_sent == 0:
-            log_progress("Autopilot: Cycle sent 0 emails. Sleeping 15 seconds to let server cool down, then switching to next niche...")
-            await asyncio.sleep(15) # Wait 15s to release browser memory and avoid spamming APIs
+            log_progress("Autopilot: Cycle sent 0 emails. Sleeping 60 seconds to let server cool down, then switching to next niche...")
+            await asyncio.sleep(60) # Wait 60s to release browser memory and avoid spamming APIs
             
     log_progress(f"Autopilot: Batch run completed. Total sent in this run: {batch_sent} over {attempts} attempts.")
     return {"status": "completed", "sent_count": batch_sent, "attempts": attempts}

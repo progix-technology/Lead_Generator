@@ -149,6 +149,10 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
             log_progress(f"Autopilot: Crawling social profiles and searching contact info for '{name}'...")
             email, discovered_web, email_source = await find_email_for_company(name, location)
             
+            if discovered_web:
+                log_progress(f"Autopilot: Lead '{name}' has a discovered website: '{discovered_web}' (skipped)")
+                continue
+
             facebook_only = current_settings.get("facebook_only", False)
             if not email:
                 log_progress(f"Autopilot: No contact emails discovered for '{name}'.")

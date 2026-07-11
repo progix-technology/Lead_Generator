@@ -176,21 +176,24 @@ def generate_ai_search_query_sync(recent_targets: list, custom_api_key: Optional
         return "Plumbers", "Sacramento, CA"
 
     prompt = f"""
-    Recommend a target US local business niche/category (e.g. Plumbers, Electricians, Dentists, Roofing Contractors, Painters, etc.)
-    and a specific target US city and state (e.g. Sacramento, CA or Houston, TX or Orlando, FL or San Jose, CA) where businesses might need a website.
+    We are scraping Google Maps to find US businesses that DO NOT have a website, so we can pitch them website design services.
+    Recommend a target US local business niche/category and a specific target US city and state (e.g. "Locksmiths", "Davenport, IA") where there is a high probability of finding small businesses without websites.
     
     You MUST NOT choose any of these recently targeted combinations (avoid them!): {recent_targets}
     
-    Guidelines:
-    1. Select a high-ticket local service category (contractors, health/medical, automotive, professional).
-    2. Select a medium-sized US city (population 50k - 500k) with high local activity.
+    Guidelines for high website-less lead conversion:
+    1. Select ONLY small-scale manual labor/home services niches where independent operators frequently run without websites. 
+       - EXCELLENT NICHES: Locksmiths, Towing Services, Junk Removal, Tree Services, Appliance Repair, Drywall Contractors, Concrete Contractors, Fence Contractors, Painting Contractors, Window Cleaning, Carpet Cleaning.
+       - AVOID: Dentists, Veterinarians, Medical clinics, large hotels, major commercial entities (99% of these already have websites).
+    2. Select smaller or mid-sized US cities, towns, or outer suburbs (population 30k - 150k) in states like TX, FL, NC, OH, GA, MI, PA, etc. 
+       - Smaller towns and rural-suburban hubs have much lower website adoption than major metropolitan or tech-heavy cities.
     
     The output MUST be a JSON object containing:
     1. "category": "Category Name"
     2. "location": "City, State"
     
     Return ONLY a JSON block, nothing else. Format:
-    {{"category": "Plumbers", "location": "Sacramento, CA"}}
+    {{"category": "Locksmiths", "location": "Davenport, IA"}}
     """
 
     res = make_openrouter_request(prompt, response_format_json=True, max_tokens=200, custom_api_key=api_key)

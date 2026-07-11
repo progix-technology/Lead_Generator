@@ -91,6 +91,10 @@ class AutomationRepository:
                 doc["daily_email_limit"] = 20
                 update_data["daily_email_limit"] = 20
                 needs_update = True
+            if "batch_email_limit" not in doc:
+                doc["batch_email_limit"] = 5
+                update_data["batch_email_limit"] = 5
+                needs_update = True
             if "smtp_host" not in doc:
                 doc["smtp_host"] = "smtp.gmail.com"
                 update_data["smtp_host"] = "smtp.gmail.com"

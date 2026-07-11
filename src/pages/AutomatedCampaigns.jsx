@@ -13,6 +13,7 @@ export default function AutomatedCampaigns() {
   const [locations, setLocations] = useState([]);
   const [facebookOnly, setFacebookOnly] = useState(false);
   const [dailyEmailLimit, setDailyEmailLimit] = useState(20);
+  const [batchEmailLimit, setBatchEmailLimit] = useState(5);
   const [newCategory, setNewCategory] = useState('');
   const [newLocation, setNewLocation] = useState('');
   
@@ -55,6 +56,7 @@ export default function AutomatedCampaigns() {
       setLocations(settings.locations || []);
       setFacebookOnly(!!settings.facebook_only);
       setDailyEmailLimit(settings.daily_email_limit || 20);
+      setBatchEmailLimit(settings.batch_email_limit || 5);
       
       // Fetch history records
       const history = await automationService.getRecords(0, 100);
@@ -105,7 +107,8 @@ export default function AutomatedCampaigns() {
         categories,
         locations,
         facebook_only: facebookOnly,
-        daily_email_limit: parseInt(dailyEmailLimit) || 20
+        daily_email_limit: parseInt(dailyEmailLimit) || 20,
+        batch_email_limit: parseInt(batchEmailLimit) || 5
       });
       setSuccessMsg('Autopilot configurations saved successfully!');
       setTimeout(() => setSuccessMsg(''), 4000);
@@ -129,7 +132,8 @@ export default function AutomatedCampaigns() {
         categories,
         locations,
         facebook_only: facebookOnly,
-        daily_email_limit: parseInt(dailyEmailLimit) || 20
+        daily_email_limit: parseInt(dailyEmailLimit) || 20,
+        batch_email_limit: parseInt(batchEmailLimit) || 5
       });
       setSuccessMsg(checked ? 'Autopilot is now active! 🤖⚡' : 'Autopilot has been disabled.');
       setTimeout(() => setSuccessMsg(''), 4000);
@@ -365,7 +369,7 @@ export default function AutomatedCampaigns() {
               <span className="text-xs text-gray-400">Pitches sent exclusively to Facebook leads.</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="md:col-span-3">
                 <Input 
                   label="Autopilot Subject Line" 
@@ -376,13 +380,24 @@ export default function AutomatedCampaigns() {
               </div>
               <div>
                 <Input 
-                  label="Daily Email Limit" 
+                  label="Daily Limit" 
                   type="number"
                   min="1"
                   max="500"
                   placeholder="20"
                   value={dailyEmailLimit}
                   onChange={(e) => setDailyEmailLimit(e.target.value)}
+                />
+              </div>
+              <div>
+                <Input 
+                  label="Batch Target" 
+                  type="number"
+                  min="1"
+                  max="50"
+                  placeholder="5"
+                  value={batchEmailLimit}
+                  onChange={(e) => setBatchEmailLimit(e.target.value)}
                 />
               </div>
             </div>

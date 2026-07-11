@@ -279,7 +279,7 @@ async def run_automation_scheduler():
                     logger.info(f"Autopilot: Starting automated batch run (Hour: {current_hour}, Sent today: {sent_today}/{daily_limit})...")
                     
                     batch_sent = 0
-                    batch_target = 5  # Target sending at least 5 emails in this scheduler wake-up run
+                    batch_target = config.get("batch_email_limit", 5)
                     max_attempts = 5  # Maximum different target query attempts to prevent API/loop exhaustion
                     attempts = 0
                     

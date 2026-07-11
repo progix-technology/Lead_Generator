@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, Query, HTTPException
+from fastapi import APIRouter, Depends, status, Query, HTTPException, BackgroundTasks
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 from typing import Any, Dict, Optional, List
@@ -65,17 +65,19 @@ async def get_records(
 
 @router.post("/trigger", response_model=Dict[str, Any])
 async def trigger_cycle(
+    background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
-    """Manually trigger one autopilot run cycle now (scans category, location and auto-sends up to daily limit)."""
+    """Manually trigger one autopilot run cycle now in the background (scans category, location and auto-sends up to daily limit)."""
     try:
         repo = AutomationRepository(db)
         config = await repo.get_settings()
         batch_target = config.get("batch_email_limit", 5)
         
-        res = await run_automation_batch(db, batch_target=batch_target)
-        return {"status": "success", "result": res}
+        # Dispatch task to background to prevent HTTP gateway timeouts (e.g. 504) during long runs
+        background_tasks.add_task(run_automation_batch, db, batch_target)
+        return {"status": "success", "message": "Autopilot batch run triggered in the background."}
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

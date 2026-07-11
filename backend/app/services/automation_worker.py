@@ -313,19 +313,12 @@ async def run_automation_scheduler():
                 sent_today = await repo.count_records_today()
                 daily_limit = config.get("daily_email_limit", 20)
                 
-                now = datetime.now()
-                current_hour = now.hour
-                
-                is_active_window = 10 <= current_hour < 12
-                # If we haven't reached our daily email limit, keep running catch-up cycles until 10:00 PM (22:00)!
-                is_catchup_window = (12 <= current_hour < 22) and (sent_today < daily_limit)
-                
-                if is_active_window or is_catchup_window:
+                if sent_today < daily_limit:
                     batch_target = config.get("batch_email_limit", 5)
                     await run_automation_batch(db, batch_target=batch_target)
                     log_progress("Autopilot: Scheduler sleeping for 30 minutes. Next run will start soon...")
                 else:
-                    logger.info(f"Autopilot: Outside active/catch-up window (Hour: {current_hour}, Sent: {sent_today}/{daily_limit}). Skipping.")
+                    logger.info(f"Autopilot: Daily email limit reached ({sent_today}/{daily_limit}). Skipping.")
             else:
                 logger.info("Autopilot: Autopilot is disabled. Sleeping...")
         except Exception as e:

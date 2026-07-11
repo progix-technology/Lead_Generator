@@ -295,37 +295,39 @@ export default function AutomatedCampaigns() {
       )}
 
       {showConsole && (
-        <Card className="bg-slate-950 text-green-400 border border-slate-800 p-5 rounded-2xl shadow-xl font-mono text-xs space-y-3 relative overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2 text-[10px] text-slate-500 uppercase tracking-widest font-bold font-sans">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse"></span> Live Autopilot Progress Terminal
-            </span>
-            <button 
-              onClick={() => setShowConsole(false)}
-              className="text-slate-400 hover:text-slate-200 cursor-pointer font-sans normal-case"
-            >
-              ✕ Close Terminal
-            </button>
+        <div className="fixed bottom-6 right-6 w-[450px] max-w-[90vw] z-50 transition-all duration-300">
+          <div className="bg-slate-950/95 border border-slate-800 text-green-400 p-5 rounded-2xl shadow-2xl font-mono text-xs space-y-3 relative overflow-hidden backdrop-blur-md">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2 text-[10px] text-slate-500 uppercase tracking-widest font-bold font-sans">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse"></span> Live Autopilot Terminal
+              </span>
+              <button 
+                onClick={() => setShowConsole(false)}
+                className="text-slate-400 hover:text-slate-200 cursor-pointer font-sans normal-case text-xs"
+              >
+                ✕ Close
+              </button>
+            </div>
+            
+            <div ref={consoleContainerRef} className="h-[250px] overflow-y-auto space-y-1.5 scroll-smooth pr-1">
+              {consoleLogs.length === 0 ? (
+                <div className="text-slate-500 italic">Awaiting worker log dispatch...</div>
+              ) : (
+                consoleLogs.map((log, index) => {
+                  const isSleeping = log.toLowerCase().includes("sleeping") || log.toLowerCase().includes("sleep");
+                  return (
+                    <div 
+                      key={index} 
+                      className={`leading-relaxed whitespace-pre-wrap select-text ${isSleeping ? 'text-blue-400 font-semibold' : 'text-green-400'}`}
+                    >
+                      {log}
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
-          
-          <div ref={consoleContainerRef} className="max-h-[220px] overflow-y-auto space-y-1.5 scroll-smooth">
-            {consoleLogs.length === 0 ? (
-              <div className="text-slate-500 italic">Awaiting worker log dispatch...</div>
-            ) : (
-              consoleLogs.map((log, index) => {
-                const isSleeping = log.toLowerCase().includes("sleeping") || log.toLowerCase().includes("sleep");
-                return (
-                  <div 
-                    key={index} 
-                    className={`leading-relaxed whitespace-pre-wrap select-text ${isSleeping ? 'text-blue-400 font-semibold' : 'text-green-400'}`}
-                  >
-                    {log}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </Card>
+        </div>
       )}
 
       {/* Metrics Cards */}

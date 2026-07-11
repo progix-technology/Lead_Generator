@@ -56,12 +56,14 @@ origins_str = os.environ.get("ALLOWED_ORIGINS", "")
 if origins_str:
     origins = [o.strip() for o in origins_str.split(",") if o.strip()]
 else:
-    origins = ["*"]
+    # Default local dev origins
+    origins = ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True if origins != ["*"] else False,
+    allow_origin_regex="https://.*\\.vercel\\.app",  # Automatically allows all Vercel deployments
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

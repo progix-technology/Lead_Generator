@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, List
 from app.database.connection import get_database
 from app.repositories.automation import AutomationRepository
 from app.auth.deps import get_current_user
-from app.services.automation_worker import run_automation_cycle
+from app.services.automation_worker import run_automation_cycle, run_automation_batch
 
 router = APIRouter()
 
@@ -70,7 +70,11 @@ async def trigger_cycle(
 ) -> Any:
     """Manually trigger one autopilot run cycle now (scans category, location and auto-sends up to daily limit)."""
     try:
-        res = await run_automation_cycle(db)
+        repo = AutomationRepository(db)
+        config = await repo.get_settings()
+        batch_target = config.get("batch_email_limit", 5)
+        
+        res = await run_automation_batch(db, batch_target=batch_target)
         return {"status": "success", "result": res}
     except Exception as e:
         raise HTTPException(

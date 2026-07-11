@@ -211,47 +211,52 @@ def scrape_google_maps_in_thread(query: str, location: str) -> List[Dict[str, An
     finally:
         loop.close()
 
+def query_ddg_local_sync(query: str, location: str) -> List[Dict[str, Any]]:
+    """Synchronous crawler querying DDG local search using urllib."""
+    import urllib.request
+    import urllib.parse
+    import json
+    
+    q_str = f"{query} {location}"
+    url = f"https://duckduckgo.com/local.js?q={urllib.parse.quote_plus(q_str)}&tg=maps_places&l=us-en"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://duckduckgo.com/",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "en-US,en;q=0.9"
+    }
+    
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=12.0) as response:
+        html = response.read().decode('utf-8')
+        data = json.loads(html)
+        results = data.get("results", [])
+        
+        companies = []
+        for item in results:
+            company = {
+                "name": item.get("name", "Unknown"),
+                "industry": query.capitalize(),
+                "address": item.get("address", location),
+                "phone_number": item.get("display_phone") or item.get("phone", ""),
+                "website_url": item.get("website") or item.get("url") or "",
+                "rating": item.get("rating"),
+                "rating_count": len(item.get("reviews", []))
+            }
+            companies.append(company)
+        return companies
+
 async def scrape_google_maps_fallback(query: str, location: str) -> List[Dict[str, Any]]:
     """
     Completely free keyless fallback search using DuckDuckGo Local Map search API.
     If it fails, falls back to direct Playwright scraping in an independent thread.
     """
-    logger.info(f"Free Fallback: Querying DuckDuckGo Local Maps for '{query}' in '{location}'")
-    
-    q_str = f"{query} {location}"
-    url = "https://duckduckgo.com/local.js"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://duckduckgo.com/",
-        "Accept-Language": "en-US,en;q=0.9"
-    }
-    params = {
-        "q": q_str,
-        "tg": "maps_places",
-        "l": "us-en"
-    }
-    
+    logger.info(f"Free Fallback: Querying DuckDuckGo Local Maps via urllib for '{query}' in '{location}'")
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(url, headers=headers, params=params, timeout=10.0)
-            if response.status_code == 200:
-                data = response.json()
-                results = data.get("results", [])
-                if results:
-                    companies = []
-                    for item in results:
-                        company = {
-                            "name": item.get("name", "Unknown"),
-                            "industry": query.capitalize(),
-                            "address": item.get("address", location),
-                            "phone_number": item.get("display_phone") or item.get("phone", ""),
-                            "website_url": item.get("website") or item.get("url") or "",
-                            "rating": item.get("rating"),
-                            "rating_count": len(item.get("reviews", []))
-                        }
-                        companies.append(company)
-                    logger.info(f"Free Fallback: DuckDuckGo Local found {len(companies)} businesses successfully!")
-                    return companies
+        companies = await asyncio.to_thread(query_ddg_local_sync, query, location)
+        if companies:
+            logger.info(f"Free Fallback: DuckDuckGo Local found {len(companies)} businesses successfully!")
+            return companies
     except Exception as e:
         logger.warning(f"Free Fallback: DuckDuckGo Local API search failed: {e}. Trying Playwright...")
 

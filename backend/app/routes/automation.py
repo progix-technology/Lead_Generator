@@ -98,3 +98,12 @@ async def get_progress(
     """Retrieve real-time progress logs of the currently running autopilot cycle."""
     from app.services.automation_worker import automation_progress
     return {"progress": automation_progress}
+
+@router.get("/test-ddg")
+async def test_ddg(query: str = "Drywall", location: str = "Canton, OH"):
+    from app.services.places import scrape_google_maps_fallback
+    try:
+        results = await scrape_google_maps_fallback(query, location)
+        return {"status": "success", "results_count": len(results), "results": results[:5]}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

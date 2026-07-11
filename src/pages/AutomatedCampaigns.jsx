@@ -37,6 +37,14 @@ export default function AutomatedCampaigns() {
   
   // Ref to body template textarea for injecting tags
   const bodyRef = useRef(null);
+  const consoleContainerRef = useRef(null);
+
+  // Auto-scroll terminal inner container only (does not bounce the browser window)
+  useEffect(() => {
+    if (consoleContainerRef.current) {
+      consoleContainerRef.current.scrollTop = consoleContainerRef.current.scrollHeight;
+    }
+  }, [consoleLogs]);
 
   useEffect(() => {
     fetchData();
@@ -300,7 +308,7 @@ export default function AutomatedCampaigns() {
             </button>
           </div>
           
-          <div className="max-h-[220px] overflow-y-auto space-y-1.5">
+          <div ref={consoleContainerRef} className="max-h-[220px] overflow-y-auto space-y-1.5 scroll-smooth">
             {consoleLogs.length === 0 ? (
               <div className="text-slate-500 italic">Awaiting worker log dispatch...</div>
             ) : (
@@ -316,7 +324,6 @@ export default function AutomatedCampaigns() {
                 );
               })
             )}
-            <div ref={(el) => el?.scrollIntoView({ behavior: 'smooth' })}></div>
           </div>
         </Card>
       )}

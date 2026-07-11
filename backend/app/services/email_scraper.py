@@ -99,6 +99,24 @@ async def scrape_url_for_emails(page, url: str) -> List[str]:
         logger.warning(f"Error scraping {url}: {e}")
         return []
 
+async def query_duckduckgo_for_links(page, query: str) -> List[str]:
+    """Queries DuckDuckGo HTML and returns all href links found on the page."""
+    ddg_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
+    try:
+        logger.info(f"Scraper: Querying DuckDuckGo: {ddg_url}")
+        # Add basic headers
+        await page.goto(ddg_url, wait_until="domcontentloaded", timeout=12000)
+        await asyncio.sleep(1.5)
+        
+        # DuckDuckGo HTML links are inside a.result__url classes
+        links = await page.locator("a.result__url").evaluate_all("elements => elements.map(e => e.href)")
+        if not links:
+            links = await page.locator("a[href]").evaluate_all("elements => elements.map(e => e.href)")
+        return links
+    except Exception as e:
+        logger.warning(f"DuckDuckGo query failed for '{query}': {e}")
+        return []
+
 async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
     Internal Playwright Scraper logic that runs inside the dedicated loop thread.
@@ -151,6 +169,15 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
                 await page.goto(yahoo_url, wait_until="domcontentloaded", timeout=15000)
                 await asyncio.sleep(2)
                 
+                # Proactively scan the Yahoo Search Results content for emails directly! (Snippet extraction)
+                search_page_content = await page.content()
+                direct_emails = EMAIL_REGEX.findall(search_page_content)
+                valid_direct = [e.lower() for e in direct_emails if is_valid_email(e)]
+                if valid_direct:
+                    logger.info(f"Agent: Found email directly in Yahoo search results: {valid_direct}")
+                    await browser.close()
+                    return valid_direct[0], None, "Search Snippet"
+                
                 links = await page.locator("a[href]").evaluate_all("elements => elements.map(e => e.href)")
                 
                 # Categorize found links
@@ -182,16 +209,49 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
             except Exception as e:
                 logger.warning(f"Yahoo search query failed: {e}")
 
+            # Fallback 1: DuckDuckGo general search if Yahoo returned nothing
+            if not facebook_url and not instagram_url and not linkedin_url and not website_url:
+                logger.info("Yahoo search returned zero results. Executing general search on DuckDuckGo...")
+                ddg_links = await query_duckduckgo_for_links(page, f"{clean_name} {location}")
+                
+                # Proactively scan DuckDuckGo Results page for emails directly!
+                ddg_content = await page.content()
+                ddg_emails = EMAIL_REGEX.findall(ddg_content)
+                valid_ddg = [e.lower() for e in ddg_emails if is_valid_email(e)]
+                if valid_ddg:
+                    logger.info(f"Agent: Found email directly in DuckDuckGo search results: {valid_ddg}")
+                    await browser.close()
+                    return valid_ddg[0], None, "Search Snippet"
+                
+                for link in ddg_links:
+                    if not link.startswith(('http://', 'https://')):
+                        continue
+                    if 'facebook.com' in link and not facebook_url and '/public/' not in link and '/events/' not in link:
+                        facebook_url = link
+                    elif 'instagram.com' in link and not instagram_url and '/p/' not in link:
+                        instagram_url = link
+                    elif 'linkedin.com' in link and not linkedin_url and ('/company/' in link or '/in/' in link):
+                        linkedin_url = link
+                    elif not any(s in link for s in ['facebook', 'instagram', 'linkedin', 'google.com/maps', 'youtube', 'twitter', 'yelp', 'yellowpages', 'bbb.org']):
+                        if not website_url:
+                            website_url = link
+
             # 2. Deep scrape direct social links first
-            # If facebook_url is missing, try a targeted Yahoo search to find it!
+            # Facebook URL targeted query fallback
             if not facebook_url:
                 try:
-                    logger.info(f"Agent: Facebook URL not in general search. Executing targeted query for '{clean_name}'")
-                    fb_search_query = urllib.parse.quote_plus(f'{clean_name} {location} facebook')
-                    fb_search_url = f"https://search.yahoo.com/search?p={fb_search_query}"
-                    await page.goto(fb_search_url, wait_until="domcontentloaded", timeout=12000)
-                    await asyncio.sleep(1.5)
-                    fb_links = await page.locator("a[href]").evaluate_all("elements => elements.map(e => e.href)")
+                    logger.info(f"Agent: Facebook URL not found. Executing targeted DuckDuckGo query...")
+                    fb_links = await query_duckduckgo_for_links(page, f"{clean_name} {location} facebook")
+                    
+                    # Scan targeted search page for direct emails
+                    fb_content = await page.content()
+                    fb_direct_emails = EMAIL_REGEX.findall(fb_content)
+                    valid_fb_direct = [e.lower() for e in fb_direct_emails if is_valid_email(e)]
+                    if valid_fb_direct:
+                        logger.info(f"Agent: Found email directly in targeted Facebook search page: {valid_fb_direct}")
+                        await browser.close()
+                        return valid_fb_direct[0], website_url, "Search Snippet"
+                        
                     for l in fb_links:
                         if 'facebook.com' in l and '/public/' not in l and '/events/' not in l:
                             facebook_url = l
@@ -208,15 +268,21 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
                         await browser.close()
                         return emails[0], website_url, "Facebook"
 
-            # If instagram_url is missing, try a targeted Yahoo search to find it!
+            # Instagram URL targeted query fallback
             if not instagram_url:
                 try:
-                    logger.info(f"Agent: Instagram URL not in general search. Executing targeted query for '{clean_name}'")
-                    ig_search_query = urllib.parse.quote_plus(f'{clean_name} {location} instagram')
-                    ig_search_url = f"https://search.yahoo.com/search?p={ig_search_query}"
-                    await page.goto(ig_search_url, wait_until="domcontentloaded", timeout=12000)
-                    await asyncio.sleep(1.5)
-                    ig_links = await page.locator("a[href]").evaluate_all("elements => elements.map(e => e.href)")
+                    logger.info(f"Agent: Instagram URL not found. Executing targeted DuckDuckGo query...")
+                    ig_links = await query_duckduckgo_for_links(page, f"{clean_name} {location} instagram")
+                    
+                    # Scan targeted search page for direct emails
+                    ig_content = await page.content()
+                    ig_direct_emails = EMAIL_REGEX.findall(ig_content)
+                    valid_ig_direct = [e.lower() for e in ig_direct_emails if is_valid_email(e)]
+                    if valid_ig_direct:
+                        logger.info(f"Agent: Found email directly in targeted Instagram search page: {valid_ig_direct}")
+                        await browser.close()
+                        return valid_ig_direct[0], website_url, "Search Snippet"
+                        
                     for l in ig_links:
                         if 'instagram.com' in l and '/p/' not in l:
                             instagram_url = l
@@ -229,6 +295,28 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
                 if emails:
                     await browser.close()
                     return emails[0], website_url, "Instagram"
+
+            # LinkedIn URL targeted query fallback
+            if not linkedin_url:
+                try:
+                    logger.info(f"Agent: LinkedIn URL not found. Executing targeted DuckDuckGo query...")
+                    li_links = await query_duckduckgo_for_links(page, f"{clean_name} {location} linkedin")
+                    
+                    # Scan targeted search page for direct emails
+                    li_content = await page.content()
+                    li_direct_emails = EMAIL_REGEX.findall(li_content)
+                    valid_li_direct = [e.lower() for e in li_direct_emails if is_valid_email(e)]
+                    if valid_li_direct:
+                        logger.info(f"Agent: Found email directly in targeted LinkedIn search page: {valid_li_direct}")
+                        await browser.close()
+                        return valid_li_direct[0], website_url, "Search Snippet"
+                        
+                    for l in li_links:
+                        if 'linkedin.com' in l and ('/company/' in l or '/in/' in l):
+                            linkedin_url = l
+                            break
+                except Exception as e:
+                    logger.warning(f"Targeted LinkedIn search failed: {e}")
 
             if linkedin_url:
                 clean_li = linkedin_url.split('?')[0].rstrip('/')

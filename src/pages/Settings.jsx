@@ -3,11 +3,12 @@ import Card from '../components/Card';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import automationService from '../services/automationService';
+import authService from '../services/authService';
 import { useAuth } from '../context/AuthContext';
 import { FiSave, FiAlertCircle, FiCheckCircle, FiMail, FiKey } from 'react-icons/fi';
 
 export default function Settings() {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   
   // API credentials states
   const [openRouterKey, setOpenRouterKey] = useState('');
@@ -21,9 +22,29 @@ export default function Settings() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Profile Edit states
+  const [profileFirstName, setProfileFirstName] = useState('');
+  const [profileLastName, setProfileLastName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
+
   useEffect(() => {
     fetchSettings();
   }, []);
+
+  useEffect(() => {
+    if (user) {
+      setProfileFirstName(user.first_name || '');
+      setProfileLastName(user.last_name || '');
+      setProfileEmail(user.email || '');
+    }
+  }, [user]);
 
   const fetchSettings = async () => {
     try {
@@ -63,6 +84,55 @@ export default function Settings() {
       setError('Failed to save settings. Please verify inputs.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleUpdateProfile = async (e) => {
+    e.preventDefault();
+    setProfileSaving(true);
+    setProfileError('');
+    setProfileSuccess('');
+
+    if (newPassword) {
+      if (!currentPassword) {
+        setProfileError('Current password is required to change password.');
+        setProfileSaving(false);
+        return;
+      }
+      if (newPassword.length < 8) {
+        setProfileError('New password must be at least 8 characters long.');
+        setProfileSaving(false);
+        return;
+      }
+      if (newPassword !== confirmPassword) {
+        setProfileError('New passwords do not match.');
+        setProfileSaving(false);
+        return;
+      }
+    }
+
+    try {
+      const updated = await authService.updateProfile({
+        first_name: profileFirstName,
+        last_name: profileLastName,
+        email: profileEmail,
+        current_password: currentPassword || null,
+        new_password: newPassword || null
+      });
+
+      setUser(updated);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      
+      setProfileSuccess('Profile updated successfully!');
+      setTimeout(() => setProfileSuccess(''), 4000);
+    } catch (err) {
+      console.error(err);
+      const errMsg = err.response?.data?.detail || 'Failed to update user profile.';
+      setProfileError(errMsg);
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -159,12 +229,25 @@ export default function Settings() {
         </Card>
       </form>
 
-      {/* Profile Card (Static / visual presentation of logged in user) */}
-      <Card>
-        <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-3 flex items-center gap-1.5">
-          👤 User Profile Info
-        </h3>
-        <div className="space-y-6 pt-2">
+      {/* Profile Card */}
+      <form onSubmit={handleUpdateProfile}>
+        <Card className="space-y-6">
+          <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-3 flex items-center gap-1.5">
+            👤 User Profile Info
+          </h3>
+          
+          {profileError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+              <FiAlertCircle className="text-base" /> {profileError}
+            </div>
+          )}
+
+          {profileSuccess && (
+            <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
+              <FiCheckCircle className="text-base" /> {profileSuccess}
+            </div>
+          )}
+
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-blue-750 text-xl font-bold border border-blue-200 shadow-sm uppercase select-none">
               {user?.first_name?.charAt(0) || user?.email?.charAt(0) || 'U'}
@@ -176,13 +259,69 @@ export default function Settings() {
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="First Name" value={user?.first_name || 'Vivang'} disabled className="bg-gray-50" />
-            <Input label="Last Name" value={user?.last_name || 'Mishra'} disabled className="bg-gray-50" />
-            <Input label="Email Address" value={user?.email || 'user@company.com'} disabled className="bg-gray-50" />
-            <Input label="Role" value="Administrator" disabled className="bg-gray-50" />
+            <Input 
+              label="First Name" 
+              value={profileFirstName} 
+              onChange={(e) => setProfileFirstName(e.target.value)} 
+            />
+            <Input 
+              label="Last Name" 
+              value={profileLastName} 
+              onChange={(e) => setProfileLastName(e.target.value)} 
+            />
+            <Input 
+              label="Email Address" 
+              type="email"
+              value={profileEmail} 
+              onChange={(e) => setProfileEmail(e.target.value)} 
+            />
+            <Input 
+              label="Role" 
+              value={user?.role === 'admin' ? 'Administrator' : user?.role || 'User'} 
+              disabled 
+              className="bg-gray-50 text-gray-500 cursor-not-allowed" 
+            />
           </div>
-        </div>
-      </Card>
+
+          <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider border-b border-gray-50 pb-2 pt-4">
+            🔐 Change Password (Optional)
+          </h4>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Input 
+              label="Current Password" 
+              type="password" 
+              placeholder="Required for password change"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+            />
+            <Input 
+              label="New Password" 
+              type="password" 
+              placeholder="Min 8 characters"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+            <Input 
+              label="Confirm New Password" 
+              type="password" 
+              placeholder="Confirm new password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </div>
+
+          <div className="pt-4 flex justify-end border-t border-gray-100">
+            <Button 
+              type="submit" 
+              disabled={profileSaving}
+              className="flex items-center gap-2 text-xs py-2.5 px-6 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white cursor-pointer shadow-sm font-semibold"
+            >
+              <FiSave /> {profileSaving ? 'Updating Profile...' : 'Update Profile'}
+            </Button>
+          </div>
+        </Card>
+      </form>
     </div>
   );
 }

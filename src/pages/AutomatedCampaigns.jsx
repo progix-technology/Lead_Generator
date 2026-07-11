@@ -46,6 +46,46 @@ export default function AutomatedCampaigns() {
     }
   }, [consoleLogs]);
 
+  // Polling loop triggered by triggeringCycle state to keep UI synced with server background thread
+  useEffect(() => {
+    let pollingActive = triggeringCycle;
+    
+    const pollLogs = async () => {
+      while (pollingActive) {
+        try {
+          const res = await automationService.getProgress();
+          if (res && res.progress) {
+            setConsoleLogs(res.progress);
+            
+            const lastLog = res.progress[res.progress.length - 1] || '';
+            // If completed or sleeping, stop button loader state
+            if (lastLog.includes("Batch run completed") || lastLog.trim().toLowerCase().includes("sleeping")) {
+              pollingActive = false;
+              setTriggeringCycle(false);
+              
+              // Refresh database stats
+              const history = await automationService.getRecords(0, 100);
+              setRecords(history.data || []);
+              setTotalCount(history.total_count || 0);
+              setTodayCount(history.today_count || 0);
+            }
+          }
+        } catch (err) {
+          console.error("Failed to poll progress:", err);
+        }
+        await new Promise(resolve => setTimeout(resolve, 1500));
+      }
+    };
+
+    if (pollingActive) {
+      pollLogs();
+    }
+
+    return () => {
+      pollingActive = false;
+    };
+  }, [triggeringCycle]);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -71,6 +111,22 @@ export default function AutomatedCampaigns() {
       setRecords(history.data || []);
       setTotalCount(history.total_count || 0);
       setTodayCount(history.today_count || 0);
+
+      // Auto-detect and sync active background campaign runs on mount
+      try {
+        const prog = await automationService.getProgress();
+        if (prog && prog.progress && prog.progress.length > 0) {
+          setConsoleLogs(prog.progress);
+          const lastLog = prog.progress[prog.progress.length - 1] || '';
+          const isActive = !lastLog.includes("Batch run completed") && !lastLog.trim().toLowerCase().includes("sleeping");
+          if (isActive) {
+            setShowConsole(true);
+            setTriggeringCycle(true);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to auto-detect active autopilot state:", err);
+      }
     } catch (err) {
       console.error(err);
       setError('Failed to load autopilot configuration.');
@@ -158,49 +214,16 @@ export default function AutomatedCampaigns() {
     setSuccessMsg('');
     setConsoleLogs(['Initializing connection to Autopilot worker daemon...']);
     setShowConsole(true);
-    
-    // Set up polling interval to fetch progress logs
-    let pollingActive = true;
-    const pollLogs = async () => {
-      while (pollingActive) {
-        try {
-          const res = await automationService.getProgress();
-          if (res && res.progress) {
-            setConsoleLogs(res.progress);
-            
-            // Auto-detect batch completion from logs
-            const lastLog = res.progress[res.progress.length - 1] || '';
-            if (lastLog.includes("Batch run completed")) {
-              pollingActive = false;
-              setTriggeringCycle(false);
-              setSuccessMsg('Autopilot batch run completed!');
-              
-              // Refresh database stats
-              const history = await automationService.getRecords(0, 100);
-              setRecords(history.data || []);
-              setTotalCount(history.total_count || 0);
-              setTodayCount(history.today_count || 0);
-            }
-          }
-        } catch (err) {
-          console.error("Failed to poll progress:", err);
-        }
-        await new Promise(resolve => setTimeout(resolve, 1500));
-      }
-    };
 
     try {
       const res = await automationService.triggerAutopilot();
       if (res.status === 'success') {
         setSuccessMsg('Autopilot batch running in the background... See live logs below!');
-        // Start polling logs
-        pollLogs();
       }
     } catch (err) {
       console.error(err);
       setError(err.response?.data?.detail || 'Manual autopilot execution cycle failed to start.');
       setTriggeringCycle(false);
-      pollingActive = false;
     }
   };
 

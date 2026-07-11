@@ -51,10 +51,17 @@ app = FastAPI(
 add_exception_handlers(app)
 
 # Configure CORS (Cross-Origin Resource Sharing)
+import os
+origins_str = os.environ.get("ALLOWED_ORIGINS", "")
+if origins_str:
+    origins = [o.strip() for o in origins_str.split(",") if o.strip()]
+else:
+    origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with frontend URL (e.g., http://localhost:5173)
-    allow_credentials=True,
+    allow_origins=origins,
+    allow_credentials=True if origins != ["*"] else False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

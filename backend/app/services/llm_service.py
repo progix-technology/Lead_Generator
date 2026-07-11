@@ -2,7 +2,7 @@ import urllib.request
 import json
 import logging
 import asyncio
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -167,3 +167,50 @@ def clean_first_name_with_ai_sync(email: str, company_name: str, custom_api_key:
 
 async def clean_first_name_with_ai(email: str, company_name: str, custom_api_key: Optional[str] = None) -> Optional[str]:
     return await asyncio.to_thread(clean_first_name_with_ai_sync, email, company_name, custom_api_key)
+
+def generate_ai_search_query_sync(recent_targets: list, custom_api_key: Optional[str] = None) -> Tuple[str, str]:
+    """Uses OpenRouter to recommend a high-converting local service category and location."""
+    api_key = custom_api_key or settings.OPENROUTER_API_KEY
+    if not api_key:
+        logger.warning("No OpenRouter API key provided for target search query generation.")
+        return "Plumbers", "Sacramento, CA"
+
+    prompt = f"""
+    Recommend a target US local business niche/category (e.g. Plumbers, Electricians, Dentists, Roofing Contractors, Painters, etc.)
+    and a specific target US city and state (e.g. Sacramento, CA or Houston, TX or Orlando, FL or San Jose, CA) where businesses might need a website.
+    
+    You MUST NOT choose any of these recently targeted combinations (avoid them!): {recent_targets}
+    
+    Guidelines:
+    1. Select a high-ticket local service category (contractors, health/medical, automotive, professional).
+    2. Select a medium-sized US city (population 50k - 500k) with high local activity.
+    
+    The output MUST be a JSON object containing:
+    1. "category": "Category Name"
+    2. "location": "City, State"
+    
+    Return ONLY a JSON block, nothing else. Format:
+    {{"category": "Plumbers", "location": "Sacramento, CA"}}
+    """
+
+    res = make_openrouter_request(prompt, response_format_json=True, max_tokens=200, custom_api_key=api_key)
+    if res:
+        try:
+            clean_res = res.strip()
+            if clean_res.startswith("```"):
+                clean_res = clean_res.split("json")[-1].split("```")[0].strip()
+            parsed = json.loads(clean_res)
+            category = parsed.get("category", "").strip()
+            location = parsed.get("location", "").strip()
+            if category and location:
+                return category, location
+        except Exception as e:
+            logger.error(f"Failed to parse AI search query JSON: {e}")
+
+    # Fallback default
+    return "Plumbers", "Sacramento, CA"
+
+async def generate_ai_search_query(recent_targets: list, custom_api_key: Optional[str] = None) -> Tuple[str, str]:
+    """Asynchronously calls generate_ai_search_query_sync."""
+    return await asyncio.to_thread(generate_ai_search_query_sync, recent_targets, custom_api_key)
+

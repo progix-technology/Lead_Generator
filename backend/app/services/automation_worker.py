@@ -72,19 +72,37 @@ async def run_automation_cycle(db) -> Dict[str, Any]:
     limit_to_send = daily_limit - sent_today
     log_progress(f"Autopilot: Autopilot will target sending up to {limit_to_send} emails in this run.")
 
-    # 2. Get search terms based on rotation index
-    search_index = current_settings.get("search_index", 0)
-    categories = current_settings.get("categories") or CATEGORIES
-    locations = current_settings.get("locations") or LOCATIONS
+    # 2. Get search terms (AI recommended or rotation fallback)
+    use_ai_targets = current_settings.get("use_ai_targets", True)
+    openrouter_key = current_settings.get("openrouter_api_key")
     
-    category = categories[search_index % len(categories)]
-    location = locations[(search_index // len(categories)) % len(locations)]
-    log_progress(f"Autopilot: Selected target category: '{category}' | location: '{location}' (Index: {search_index})")
+    category = None
+    location = None
+    
+    if use_ai_targets and openrouter_key:
+        try:
+            log_progress("Autopilot: Invoking AI to recommend a high-converting search target...")
+            cursor = db["automation_records"].find({}).sort("created_at", -1).limit(15)
+            recent_records = [doc async for doc in cursor]
+            recent_targets = [f"{r.get('category')} | {r.get('location')}" for r in recent_records if r.get('category')]
+            
+            from app.services.llm_service import generate_ai_search_query
+            category, location = await generate_ai_search_query(recent_targets, openrouter_key)
+            log_progress(f"Autopilot: AI Recommended target ➔ Category: '{category}' | Location: '{location}'!")
+        except Exception as e:
+            log_progress(f"Autopilot: Warning: AI target recommendation failed: {e}. Falling back to rotation index.")
+            
+    if not category or not location:
+        search_index = current_settings.get("search_index", 0)
+        categories = current_settings.get("categories") or CATEGORIES
+        locations = current_settings.get("locations") or LOCATIONS
+        category = categories[search_index % len(categories)]
+        location = locations[(search_index // len(categories)) % len(locations)]
+        log_progress(f"Autopilot: Selected target category: '{category}' | location: '{location}' (Index: {search_index})")
+        # Increment search index
+        await repo.update_settings({"search_index": search_index + 1})
 
-    # 3. Increment search index
-    await repo.update_settings({"search_index": search_index + 1})
-
-    # 4. Search Google Places fallback scraper
+    # 3. Search Google Places fallback scraper
     log_progress(f"Autopilot: Fetching local businesses from Google Maps...")
     results, _ = await search_companies_google_places(category, location)
     if not results:
@@ -246,14 +264,21 @@ async def run_automation_scheduler():
             repo = AutomationRepository(db)
             config = await repo.get_settings()
             if config.get("enabled", False):
+                sent_today = await repo.count_records_today()
+                daily_limit = config.get("daily_email_limit", 20)
+                
                 now = datetime.now()
                 current_hour = now.hour
-                # Enforce daily 10:00 AM - 12:00 PM (10:00 - 11:59) active window
-                if 10 <= current_hour < 12:
-                    logger.info(f"Autopilot: Inside active automated outreach window ({now.strftime('%H:%M:%S')}). Running cycle...")
+                
+                is_active_window = 10 <= current_hour < 12
+                # If we haven't reached our daily email limit, keep running catch-up cycles until 10:00 PM (22:00)!
+                is_catchup_window = (12 <= current_hour < 22) and (sent_today < daily_limit)
+                
+                if is_active_window or is_catchup_window:
+                    logger.info(f"Autopilot: Running cycle (Hour: {current_hour}, Sent today: {sent_today}/{daily_limit})...")
                     await run_automation_cycle(db)
                 else:
-                    logger.info(f"Autopilot: Outside active automated outreach window 10:00 AM - 12:00 PM (Current time: {now.strftime('%H:%M:%S')}). Skipping.")
+                    logger.info(f"Autopilot: Outside active/catch-up window (Hour: {current_hour}, Sent: {sent_today}/{daily_limit}). Skipping.")
             else:
                 logger.info("Autopilot: Autopilot is disabled. Sleeping...")
         except Exception as e:

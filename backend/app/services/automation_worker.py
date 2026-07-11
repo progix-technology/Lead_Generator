@@ -51,7 +51,6 @@ async def run_automation_cycle(db) -> Dict[str, Any]:
     checks for Facebook source, SMTP verifies them, and auto-sends pitches.
     """
     global automation_progress
-    automation_progress.clear()
     
     log_progress("Autopilot: Initializing automated outreach cycle...")
     
@@ -253,6 +252,9 @@ async def run_automation_batch(db, batch_target: int = 5, max_attempts: int = 5)
     Runs automated cycles in a loop until batch_target emails are sent
     or max_attempts is reached. Shared by scheduler and manual trigger.
     """
+    global automation_progress
+    automation_progress.clear()
+    
     repo = AutomationRepository(db)
     config = await repo.get_settings()
     daily_limit = config.get("daily_email_limit", 20)

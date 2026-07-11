@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # Global list to track live progress of the automation cycle for frontend display
 automation_progress: List[str] = []
+is_batch_running: bool = False
 
 def log_progress(msg: str):
     global automation_progress
@@ -259,42 +260,51 @@ async def run_automation_batch(db, batch_target: int = 5) -> Dict[str, Any]:
     Runs automated cycles in a loop until batch_target emails are sent.
     Shared by scheduler and manual trigger.
     """
-    global automation_progress
-    automation_progress.clear()
+    global automation_progress, is_batch_running
     
-    repo = AutomationRepository(db)
-    config = await repo.get_settings()
-    daily_limit = config.get("daily_email_limit", 20)
-    
-    batch_sent = 0
-    attempts = 0
-    batch_targets = []
-    
-    log_progress(f"Autopilot: Starting automated batch run (Target: {batch_target} emails)...")
-    
-    while batch_sent < batch_target:
-        current_sent_today = await repo.count_records_today()
-        if current_sent_today >= daily_limit:
-            log_progress("Autopilot: Daily email limit reached mid-batch. Halting batch run.")
-            break
-            
-        log_progress(f"Autopilot: Batch run attempt {attempts + 1} (Sent in this batch: {batch_sent}/{batch_target})")
-        cycle_result = await run_automation_cycle(db, batch_targets=batch_targets)
+    if is_batch_running:
+        logger.warning("Autopilot: A batch is already actively running. Skipping duplicate trigger.")
+        return {"status": "skipped", "reason": "already_running"}
         
-        cycle_sent = cycle_result.get("sent_count", 0)
-        batch_sent += cycle_sent
-        attempts += 1
+    try:
+        is_batch_running = True
+        automation_progress.clear()
         
-        if batch_sent >= batch_target:
-            log_progress(f"Autopilot: Batch target of {batch_target} emails reached. Ending batch run.")
-            break
+        repo = AutomationRepository(db)
+        config = await repo.get_settings()
+        daily_limit = config.get("daily_email_limit", 20)
+        
+        batch_sent = 0
+        attempts = 0
+        batch_targets = []
+        
+        log_progress(f"Autopilot: Starting automated batch run (Target: {batch_target} emails)...")
+        
+        while batch_sent < batch_target:
+            current_sent_today = await repo.count_records_today()
+            if current_sent_today >= daily_limit:
+                log_progress("Autopilot: Daily email limit reached mid-batch. Halting batch run.")
+                break
+                
+            log_progress(f"Autopilot: Batch run attempt {attempts + 1} (Sent in this batch: {batch_sent}/{batch_target})")
+            cycle_result = await run_automation_cycle(db, batch_targets=batch_targets)
             
-        if cycle_sent == 0:
-            log_progress("Autopilot: Cycle sent 0 emails. Sleeping 60 seconds to let server cool down, then switching to next niche...")
-            await asyncio.sleep(60) # Wait 60s to release browser memory and avoid spamming APIs
+            cycle_sent = cycle_result.get("sent_count", 0)
+            batch_sent += cycle_sent
+            attempts += 1
             
-    log_progress(f"Autopilot: Batch run completed. Total sent in this run: {batch_sent} over {attempts} attempts.")
-    return {"status": "completed", "sent_count": batch_sent, "attempts": attempts}
+            if batch_sent >= batch_target:
+                log_progress(f"Autopilot: Batch target of {batch_target} emails reached. Ending batch run.")
+                break
+                
+            if cycle_sent == 0:
+                log_progress("Autopilot: Cycle sent 0 emails. Sleeping 60 seconds to let server cool down, then switching to next niche...")
+                await asyncio.sleep(60) # Wait 60s to release browser memory and avoid spamming APIs
+                
+        log_progress(f"Autopilot: Batch run completed. Total sent in this run: {batch_sent} over {attempts} attempts.")
+        return {"status": "completed", "sent_count": batch_sent, "attempts": attempts}
+    finally:
+        is_batch_running = False
 
 async def run_automation_scheduler():
     """

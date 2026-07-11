@@ -69,7 +69,12 @@ async def trigger_cycle(
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
-    """Manually trigger one autopilot run cycle now in the background (scans category, location and auto-sends up to daily limit)."""
+    from app.services.automation_worker import is_batch_running
+    if is_batch_running:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Autopilot is already actively running a campaign batch. Please wait for the current run to finish."
+        )
     try:
         repo = AutomationRepository(db)
         config = await repo.get_settings()
@@ -78,6 +83,8 @@ async def trigger_cycle(
         # Dispatch task to background to prevent HTTP gateway timeouts (e.g. 504) during long runs
         background_tasks.add_task(run_automation_batch, db, batch_target)
         return {"status": "success", "message": "Autopilot batch run triggered in the background."}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

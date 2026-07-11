@@ -212,7 +212,50 @@ def scrape_google_maps_in_thread(query: str, location: str) -> List[Dict[str, An
         loop.close()
 
 async def scrape_google_maps_fallback(query: str, location: str) -> List[Dict[str, Any]]:
-    """Runs Playwright Google Maps scraper in thread."""
+    """
+    Completely free keyless fallback search using DuckDuckGo Local Map search API.
+    If it fails, falls back to direct Playwright scraping in an independent thread.
+    """
+    logger.info(f"Free Fallback: Querying DuckDuckGo Local Maps for '{query}' in '{location}'")
+    
+    q_str = f"{query} {location}"
+    url = "https://duckduckgo.com/local.js"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://duckduckgo.com/",
+        "Accept-Language": "en-US,en;q=0.9"
+    }
+    params = {
+        "q": q_str,
+        "tg": "maps_places",
+        "l": "us-en"
+    }
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, params=params, timeout=10.0)
+            if response.status_code == 200:
+                data = response.json()
+                results = data.get("results", [])
+                if results:
+                    companies = []
+                    for item in results:
+                        company = {
+                            "name": item.get("name", "Unknown"),
+                            "industry": query.capitalize(),
+                            "address": item.get("address", location),
+                            "phone_number": item.get("display_phone") or item.get("phone", ""),
+                            "website_url": item.get("website") or item.get("url") or "",
+                            "rating": item.get("rating"),
+                            "rating_count": len(item.get("reviews", []))
+                        }
+                        companies.append(company)
+                    logger.info(f"Free Fallback: DuckDuckGo Local found {len(companies)} businesses successfully!")
+                    return companies
+    except Exception as e:
+        logger.warning(f"Free Fallback: DuckDuckGo Local API search failed: {e}. Trying Playwright...")
+
+    # Final fallback if DDG Local fails
     return await asyncio.to_thread(scrape_google_maps_in_thread, query, location)
 
 async def search_companies_google_places(

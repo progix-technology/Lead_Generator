@@ -22,7 +22,9 @@ automation_progress: List[str] = []
 def log_progress(msg: str):
     global automation_progress
     logger.info(msg)
-    timestamp = datetime.now().strftime("%H:%M:%S")
+    from zoneinfo import ZoneInfo
+    ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
+    timestamp = ist_now.strftime("%H:%M:%S")
     automation_progress.append(f"[{timestamp}] {msg}")
 
 CATEGORIES = [

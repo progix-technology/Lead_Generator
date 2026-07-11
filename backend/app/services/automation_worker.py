@@ -44,7 +44,7 @@ LOCATIONS = [
     "San Rafael, CA", "Novato, CA", "Petaluma, CA", "Santa Rosa, CA", "Berkeley, CA"
 ]
 
-async def run_automation_cycle(db) -> Dict[str, Any]:
+async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]:
     """
     Runs a single autopilot lead generation & outreach cycle.
     Queries Google Places, filters for website-less leads, crawls emails,
@@ -84,6 +84,8 @@ async def run_automation_cycle(db) -> Dict[str, Any]:
             cursor = db["automation_records"].find({}).sort("created_at", -1).limit(15)
             recent_records = [doc async for doc in cursor]
             recent_targets = [f"{r.get('category')} | {r.get('location')}" for r in recent_records if r.get('category')]
+            if batch_targets:
+                recent_targets.extend(batch_targets)
             
             from app.services.llm_service import generate_ai_search_query
             category, location = await generate_ai_search_query(recent_targets, openrouter_key)
@@ -100,6 +102,9 @@ async def run_automation_cycle(db) -> Dict[str, Any]:
         log_progress(f"Autopilot: Selected target category: '{category}' | location: '{location}' (Index: {search_index})")
         # Increment search index
         await repo.update_settings({"search_index": search_index + 1})
+
+    if batch_targets is not None:
+        batch_targets.append(f"{category} | {location}")
 
     # 3. Search Google Places fallback scraper
     log_progress(f"Autopilot: Fetching local businesses from Google Maps...")
@@ -247,10 +252,10 @@ async def run_automation_cycle(db) -> Dict[str, Any]:
     log_progress(f"Autopilot: Cycle complete. Scanned: {scanned_count} leads, Sent: {sent_count} emails.")
     return {"status": "completed", "sent_count": sent_count, "scanned_count": scanned_count}
 
-async def run_automation_batch(db, batch_target: int = 5, max_attempts: int = 5) -> Dict[str, Any]:
+async def run_automation_batch(db, batch_target: int = 5) -> Dict[str, Any]:
     """
-    Runs automated cycles in a loop until batch_target emails are sent
-    or max_attempts is reached. Shared by scheduler and manual trigger.
+    Runs automated cycles in a loop until batch_target emails are sent.
+    Shared by scheduler and manual trigger.
     """
     global automation_progress
     automation_progress.clear()
@@ -261,17 +266,18 @@ async def run_automation_batch(db, batch_target: int = 5, max_attempts: int = 5)
     
     batch_sent = 0
     attempts = 0
+    batch_targets = []
     
     log_progress(f"Autopilot: Starting automated batch run (Target: {batch_target} emails)...")
     
-    while batch_sent < batch_target and attempts < max_attempts:
+    while batch_sent < batch_target:
         current_sent_today = await repo.count_records_today()
         if current_sent_today >= daily_limit:
             log_progress("Autopilot: Daily email limit reached mid-batch. Halting batch run.")
             break
             
-        log_progress(f"Autopilot: Batch run attempt {attempts + 1}/{max_attempts} (Sent in this batch: {batch_sent}/{batch_target})")
-        cycle_result = await run_automation_cycle(db)
+        log_progress(f"Autopilot: Batch run attempt {attempts + 1} (Sent in this batch: {batch_sent}/{batch_target})")
+        cycle_result = await run_automation_cycle(db, batch_targets=batch_targets)
         
         cycle_sent = cycle_result.get("sent_count", 0)
         batch_sent += cycle_sent
@@ -282,8 +288,8 @@ async def run_automation_batch(db, batch_target: int = 5, max_attempts: int = 5)
             break
             
         if cycle_sent == 0:
-            log_progress("Autopilot: Cycle sent 0 emails. Auto-switching to next target niche...")
-            await asyncio.sleep(2) # Small safety gap
+            log_progress("Autopilot: Cycle sent 0 emails. Sleeping 15 seconds to let server cool down, then switching to next niche...")
+            await asyncio.sleep(15) # Wait 15s to release browser memory and avoid spamming APIs
             
     log_progress(f"Autopilot: Batch run completed. Total sent in this run: {batch_sent} over {attempts} attempts.")
     return {"status": "completed", "sent_count": batch_sent, "attempts": attempts}

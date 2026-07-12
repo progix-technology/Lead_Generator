@@ -8,6 +8,28 @@ from playwright.async_api import async_playwright
 
 logger = logging.getLogger(__name__)
 
+def clean_redirect_urls(url: str) -> str:
+    """Unwrap search engine redirect links (Yahoo and DuckDuckGo) to retrieve the actual business/social URL."""
+    if not url:
+        return ""
+    if 'r.search.yahoo.com' in url and 'RU=' in url:
+        try:
+            parts = url.split('RU=')
+            if len(parts) > 1:
+                target = parts[1].split('/RK=')[0]
+                return urllib.parse.unquote(target)
+        except Exception:
+            pass
+    elif 'uddg=' in url:
+        try:
+            parts = url.split('uddg=')
+            if len(parts) > 1:
+                target = parts[1].split('&')[0]
+                return urllib.parse.unquote(target)
+        except Exception:
+            pass
+    return url
+
 # Strict Regex to match valid emails
 EMAIL_REGEX = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
 
@@ -112,7 +134,7 @@ async def query_duckduckgo_for_links(page, query: str) -> List[str]:
         links = await page.locator("a.result__url").evaluate_all("elements => elements.map(e => e.href)")
         if not links:
             links = await page.locator("a[href]").evaluate_all("elements => elements.map(e => e.href)")
-        return links
+        return [clean_redirect_urls(l) for l in links]
     except Exception as e:
         logger.warning(f"DuckDuckGo query failed for '{query}': {e}")
         return []
@@ -181,7 +203,8 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
                 links = await page.locator("a[href]").evaluate_all("elements => elements.map(e => e.href)")
                 
                 # Categorize found links
-                for link in links:
+                for raw_link in links:
+                    link = clean_redirect_urls(raw_link)
                     if not link.startswith(('http://', 'https://')):
                         continue
                     if any(domain in link for domain in ['yahoo.com', 'yahoo.co', 'yimg.com', 'microsoft.com', 'google.com']):

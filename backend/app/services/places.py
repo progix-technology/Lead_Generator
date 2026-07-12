@@ -234,6 +234,16 @@ def query_ddg_local_sync(query: str, location: str) -> List[Dict[str, Any]]:
         
         companies = []
         for item in results:
+            # Safely resolve rating_count
+            reviews = item.get("reviews")
+            rating_count = 0
+            if isinstance(reviews, list):
+                rating_count = len(reviews)
+            elif isinstance(reviews, (int, float)):
+                rating_count = int(reviews)
+            elif isinstance(item.get("review_count"), (int, float)):
+                rating_count = int(item.get("review_count"))
+                
             company = {
                 "name": item.get("name", "Unknown"),
                 "industry": query.capitalize(),
@@ -241,7 +251,7 @@ def query_ddg_local_sync(query: str, location: str) -> List[Dict[str, Any]]:
                 "phone_number": item.get("display_phone") or item.get("phone", ""),
                 "website_url": item.get("website") or item.get("url") or "",
                 "rating": item.get("rating"),
-                "rating_count": len(item.get("reviews", []))
+                "rating_count": rating_count
             }
             companies.append(company)
         return companies

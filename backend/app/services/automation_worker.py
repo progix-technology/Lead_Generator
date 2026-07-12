@@ -20,6 +20,18 @@ logger = logging.getLogger(__name__)
 automation_progress: List[str] = []
 is_batch_running: bool = False
 
+def is_directory_url(url: str) -> bool:
+    """Helper to detect if a URL is a directory listing profile (like Yelp) rather than a custom business website."""
+    if not url:
+        return False
+    url_lower = url.lower()
+    directories = [
+        'yelp.com', 'facebook.com', 'instagram.com', 'apple.com/place', 'maps.apple.com',
+        'yellowpages.com', 'yp.com', 'foursquare.com', 'bbb.org', 'manta.com',
+        'tripadvisor.com', 'angi.com', 'houzz.com', 'chamberofcommerce.com', 'local.yahoo.com'
+    ]
+    return any(domain in url_lower for domain in directories)
+
 def log_progress(msg: str):
     global automation_progress
     logger.info(msg)
@@ -132,7 +144,8 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         website_url = company.get("website_url")
 
         # ONLY target leads without a website!
-        if website_url:
+        # Yelp, Apple Maps, or other directory profiles do not count as custom websites.
+        if website_url and not is_directory_url(website_url):
             log_progress(f"Autopilot: Lead '{name}' has website: {website_url} (skipped)")
             continue
 

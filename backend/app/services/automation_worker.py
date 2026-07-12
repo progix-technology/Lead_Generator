@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Global list to track live progress of the automation cycle for frontend display
 automation_progress: List[str] = []
 is_batch_running: bool = False
+last_log_date = None
 
 def is_directory_url(url: str) -> bool:
     """Helper to detect if a URL is a directory listing profile (like Yelp) rather than a custom business website."""
@@ -33,10 +34,17 @@ def is_directory_url(url: str) -> bool:
     return any(domain in url_lower for domain in directories)
 
 def log_progress(msg: str):
-    global automation_progress
+    global automation_progress, last_log_date
     logger.info(msg)
     from zoneinfo import ZoneInfo
     ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
+    current_date = ist_now.strftime("%Y-%m-%d")
+    
+    # Auto-clear logs when the day changes to keep only the current day's data
+    if last_log_date is not None and last_log_date != current_date:
+        automation_progress.clear()
+        
+    last_log_date = current_date
     timestamp = ist_now.strftime("%H:%M:%S")
     automation_progress.append(f"[{timestamp}] {msg}")
 

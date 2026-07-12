@@ -42,7 +42,7 @@ def make_openrouter_request(prompt: str, response_format_json: bool = False, max
         try:
             req_body = json.dumps(data).encode("utf-8")
             req = urllib.request.Request(url, data=req_body, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=4) as response:
                 res_body = response.read().decode("utf-8")
                 res_data = json.loads(res_body)
                 choices = res_data.get("choices", [])

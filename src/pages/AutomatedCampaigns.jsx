@@ -57,9 +57,8 @@ export default function AutomatedCampaigns() {
           if (res && res.progress) {
             setConsoleLogs(res.progress);
             
-            const lastLog = res.progress[res.progress.length - 1] || '';
-            // If completed or sleeping, stop button loader state
-            if (lastLog.includes("Batch run completed") || lastLog.trim().toLowerCase().includes("sleeping")) {
+            // Stop polling when background batch worker is no longer running
+            if (res.is_running === false) {
               pollingActive = false;
               setTriggeringCycle(false);
               

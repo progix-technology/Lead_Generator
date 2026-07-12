@@ -96,8 +96,8 @@ async def get_progress(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
     """Retrieve real-time progress logs of the currently running autopilot cycle."""
-    from app.services.automation_worker import automation_progress
-    return {"progress": automation_progress}
+    from app.services.automation_worker import automation_progress, is_batch_running
+    return {"progress": automation_progress, "is_running": is_batch_running}
 
 @router.get("/test-ddg")
 async def test_ddg(query: str = "Drywall", location: str = "Canton, OH"):

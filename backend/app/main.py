@@ -30,6 +30,21 @@ async def lifespan(app: FastAPI):
     """
     # Startup: Connect to Database
     await connect_to_mongo()
+    
+    # Auto-install Playwright Chromium browser asynchronously so it doesn't block server startup
+    def install_playwright():
+        try:
+            import subprocess
+            import sys
+            logger.info("FastAPI Lifespan: Auto-installing Playwright Chromium browser...")
+            subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
+            logger.info("FastAPI Lifespan: Playwright Chromium browser installed successfully!")
+        except Exception as err:
+            logger.error(f"FastAPI Lifespan: Playwright auto-install failed: {err}")
+            
+    import threading
+    threading.Thread(target=install_playwright, daemon=True).start()
+    
     # Start the background autopilot scheduler
     from app.services.automation_worker import run_automation_scheduler
     asyncio.create_task(run_automation_scheduler())

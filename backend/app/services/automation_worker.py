@@ -252,8 +252,8 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                                 .replace("{{suggestions}}", sug_bullets)
             else:
                 # Parse template placeholders
-                subject_tmpl = current_settings.get("subject_template", "")
-                body_tmpl = current_settings.get("body_template", "")
+                subject_tmpl = current_settings.get("subject_template") or ""
+                body_tmpl = current_settings.get("body_template") or ""
 
                 # Personalize placeholders
                 co_website = "your business"

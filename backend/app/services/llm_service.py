@@ -210,29 +210,8 @@ def generate_ai_search_query_sync(recent_targets: list, custom_api_key: Optional
         except Exception as e:
             logger.error(f"Failed to parse AI search query JSON: {e}")
 
-    # Fallback rotation list to ensure autopilot continues working even if OpenRouter API is rate-limited or out of credits
-    import random
-    fallbacks = [
-        ("Junk Removal", "Greenville, NC"),
-        ("Fence Contractors", "Gastonia, NC"),
-        ("Drywall Contractors", "Daytona Beach, FL"),
-        ("Towing Services", "Midland, TX"),
-        ("Locksmiths", "Dothan, AL"),
-        ("Appliance Repair", "Mansfield, OH"),
-        ("Tree Services", "Athens, GA"),
-        ("Painting Contractors", "Mentor, OH"),
-        ("Window Cleaning", "Florence, SC"),
-        ("Carpet Cleaning", "Florence, AL"),
-        ("Concrete Contractors", "Mentor, OH"),
-        ("Junk Removal", "Gainesville, GA"),
-        ("Drywall Contractors", "Jacksonville, NC"),
-        ("Towing Services", "Dearborn, MI")
-    ]
-    valid_fallbacks = [f for f in fallbacks if f"{f[0]} | {f[1]}" not in recent_targets]
-    if not valid_fallbacks:
-        valid_fallbacks = fallbacks
-        
-    return random.choice(valid_fallbacks)
+    # Return None, None on failure to let the worker fall back to the user's manually configured rotation list
+    return None, None
 
 async def generate_ai_search_query(recent_targets: list, custom_api_key: Optional[str] = None) -> Tuple[str, str]:
     """Asynchronously calls generate_ai_search_query_sync."""

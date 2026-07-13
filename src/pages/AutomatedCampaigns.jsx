@@ -9,6 +9,8 @@ export default function AutomatedCampaigns() {
   const [enabled, setEnabled] = useState(false);
   const [subjectTemplate, setSubjectTemplate] = useState('');
   const [bodyTemplate, setBodyTemplate] = useState('');
+  const [redesignSubjectTemplate, setRedesignSubjectTemplate] = useState('');
+  const [redesignBodyTemplate, setRedesignBodyTemplate] = useState('');
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [facebookOnly, setFacebookOnly] = useState(false);
@@ -37,6 +39,7 @@ export default function AutomatedCampaigns() {
   
   // Ref to body template textarea for injecting tags
   const bodyRef = useRef(null);
+  const redesignBodyRef = useRef(null);
   const consoleContainerRef = useRef(null);
 
   // Auto-scroll terminal inner container only (does not bounce the browser window)
@@ -109,6 +112,8 @@ export default function AutomatedCampaigns() {
       setEnabled(settings.enabled);
       setSubjectTemplate(settings.subject_template || '');
       setBodyTemplate(settings.body_template || '');
+      setRedesignSubjectTemplate(settings.redesign_subject_template || '');
+      setRedesignBodyTemplate(settings.redesign_body_template || '');
       setCategories(settings.categories || []);
       setLocations(settings.locations || []);
       setFacebookOnly(!!settings.facebook_only);
@@ -176,6 +181,8 @@ export default function AutomatedCampaigns() {
         enabled,
         subject_template: subjectTemplate,
         body_template: bodyTemplate,
+        redesign_subject_template: redesignSubjectTemplate,
+        redesign_body_template: redesignBodyTemplate,
         categories,
         locations,
         facebook_only: facebookOnly,
@@ -201,6 +208,8 @@ export default function AutomatedCampaigns() {
         enabled: checked,
         subject_template: subjectTemplate,
         body_template: bodyTemplate,
+        redesign_subject_template: redesignSubjectTemplate,
+        redesign_body_template: redesignBodyTemplate,
         categories,
         locations,
         facebook_only: facebookOnly,
@@ -255,6 +264,26 @@ export default function AutomatedCampaigns() {
     }, 0);
   };
 
+  const insertRedesignVariable = (variable) => {
+    const textarea = redesignBodyRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const text = textarea.value;
+    const before = text.substring(0, start);
+    const after = text.substring(end, text.length);
+
+    const replacement = `{{${variable}}}`;
+    setRedesignBodyTemplate(before + replacement + after);
+
+    // Reposition cursor after injection
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + replacement.length, start + replacement.length);
+    }, 0);
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -271,6 +300,18 @@ export default function AutomatedCampaigns() {
     { code: 'location', label: 'Location/City' },
     { code: 'current_platform', label: 'Email Source (Facebook)' },
     { code: 'service_type', label: 'Offer Type' }
+  ];
+
+  const redesignVariables = [
+    { code: 'company', label: 'Company Name' },
+    { code: 'first_name', label: 'First Name' },
+    { code: 'website', label: 'Website URL' },
+    { code: 'industry', label: 'Industry Name' },
+    { code: 'location', label: 'Location/City' },
+    { code: 'performance_score', label: 'Speed Score' },
+    { code: 'ui_score', label: 'UI Score' },
+    { code: 'seo_score', label: 'SEO Score' },
+    { code: 'suggestions', label: 'Audit Suggestions' }
   ];
 
   return (
@@ -490,6 +531,71 @@ export default function AutomatedCampaigns() {
                 className="text-xs px-6 py-2"
               >
                 {savingSettings ? 'Saving...' : 'Save Autopilot Template'}
+              </Button>
+            </div>
+          </Card>
+
+          {/* Autopilot Redesign Template (Bad Website Leads) Configurations */}
+          <Card className="space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                <FiSettings className="text-blue-500" /> Redesign (Bad Website) Template
+              </h3>
+              <span className="text-xs text-gray-400">Pitches sent exclusively to leads with outdated/slow websites.</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="md:col-span-5">
+                <Input 
+                  label="Redesign Subject Line" 
+                  placeholder="Quick suggestion for {{company}} about your website" 
+                  value={redesignSubjectTemplate}
+                  onChange={(e) => setRedesignSubjectTemplate(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="md:col-span-3">
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Body Template</label>
+                <textarea 
+                  ref={redesignBodyRef}
+                  rows="14"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
+                  placeholder="Write your website redesign outreach email here..."
+                  value={redesignBodyTemplate}
+                  onChange={(e) => setRedesignBodyTemplate(e.target.value)}
+                />
+              </div>
+              
+              {/* Template Variables Helper */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Available Tags:</label>
+                <div className="flex flex-col gap-1.5">
+                  {redesignVariables.map((variable) => (
+                    <button
+                      type="button"
+                      key={variable.code}
+                      onClick={() => insertRedesignVariable(variable.code)}
+                      className="text-left px-2.5 py-1.5 text-[11px] font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-all cursor-pointer flex items-center justify-between"
+                    >
+                      <span>{variable.label}</span>
+                      <span className="text-blue-600 font-mono">+{variable.code}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-400 leading-normal mt-3 italic">Click any tag button to insert placeholder at cursor.</p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-gray-100">
+              <Button 
+                variant="primary" 
+                onClick={handleSaveSettings}
+                disabled={savingSettings}
+                className="text-xs px-6 py-2"
+              >
+                {savingSettings ? 'Saving...' : 'Save Redesign Template'}
               </Button>
             </div>
           </Card>

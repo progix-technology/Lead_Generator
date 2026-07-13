@@ -17,6 +17,8 @@ class AutomationSettingsUpdate(BaseModel):
     enabled: Optional[bool] = None
     subject_template: Optional[str] = None
     body_template: Optional[str] = None
+    redesign_subject_template: Optional[str] = None
+    redesign_body_template: Optional[str] = None
     categories: Optional[List[str]] = None
     locations: Optional[List[str]] = None
     facebook_only: Optional[bool] = None

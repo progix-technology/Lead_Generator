@@ -229,29 +229,27 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
             log_progress(f"Autopilot: AI extracted greeting name: '{greeting_name}'")
 
             if is_redesign:
-                # Custom high-converting Redesign Pitch
-                subject = f"Quick suggestion for {name} about your website"
+                # Custom high-converting Redesign Pitch from settings
+                subject_tmpl = current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
+                body_tmpl = current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
+                
                 sug_bullets = "\n".join([f"• {s}" for s in suggestions]) if suggestions else "• Outdated responsive layout and performance bottlenecks."
                 
-                body = (
-                    f"Hello {greeting_name},\n\n"
-                    f"I hope you're doing well.\n\n"
-                    f"While researching businesses in the {category} sector across {location or 'your area'}, I checked your website ({website_url}) and ran a quick performance/SEO diagnostic. I noticed a few technical issues that might be affecting your user experience and search ranking:\n\n"
-                    f"• Speed/Performance Score: {performance_score}/100\n"
-                    f"• Mobile/UI Score: {ui_score}/100\n"
-                    f"• SEO Health Score: {seo_score}/100\n\n"
-                    f"Here are the specific recommendations generated:\n"
-                    f"{sug_bullets}\n\n"
-                    f"At Progix Technologies LLP, we specialize in high-performance web design and SEO. We can rebuild your website to load in under 1.5 seconds, make it 100% mobile-responsive, and integrate direct online bookings to convert more visitors into clients.\n\n"
-                    f"Would you be open to a quick call or a 1-page free homepage design mockup next week to see how your site can be modernized?\n\n"
-                    f"Thank you for your time, and I look forward to hearing from you.\n\n"
-                    f"Best Regards,\n\n"
-                    f"Abhinandan Dubey\n"
-                    f"Progix Technologies LLP\n"
-                    f"📞 +1 (916) 702-8905\n"
-                    f"✉️ progixtechnology@gmail.com\n"
-                    f"🌐 https://www.progixtechnology.com/"
-                )
+                subject = subject_tmpl.replace("{{company}}", name)\
+                                      .replace("{{first_name}}", greeting_name)\
+                                      .replace("{{website}}", website_url)\
+                                      .replace("{{industry}}", category)\
+                                      .replace("{{location}}", location or "your area")
+                                      
+                body = body_tmpl.replace("{{company}}", name)\
+                                .replace("{{first_name}}", greeting_name)\
+                                .replace("{{website}}", website_url)\
+                                .replace("{{industry}}", category)\
+                                .replace("{{location}}", location or "your area")\
+                                .replace("{{performance_score}}", str(performance_score))\
+                                .replace("{{ui_score}}", str(ui_score))\
+                                .replace("{{seo_score}}", str(seo_score))\
+                                .replace("{{suggestions}}", sug_bullets)
             else:
                 # Parse template placeholders
                 subject_tmpl = current_settings.get("subject_template", "")

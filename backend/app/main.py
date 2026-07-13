@@ -33,14 +33,18 @@ async def lifespan(app: FastAPI):
     
     # Auto-install Playwright Chromium browser asynchronously so it doesn't block server startup
     def install_playwright():
+        import app.services.email_scraper as email_scraper
         try:
             import subprocess
             import sys
+            email_scraper.PLAYWRIGHT_INSTALLING = True
             logger.info("FastAPI Lifespan: Auto-installing Playwright Chromium browser...")
             subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=True)
             logger.info("FastAPI Lifespan: Playwright Chromium browser installed successfully!")
         except Exception as err:
             logger.error(f"FastAPI Lifespan: Playwright auto-install failed: {err}")
+        finally:
+            email_scraper.PLAYWRIGHT_INSTALLING = False
             
     import threading
     threading.Thread(target=install_playwright, daemon=True).start()

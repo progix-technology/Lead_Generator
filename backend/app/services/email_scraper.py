@@ -8,6 +8,9 @@ from playwright.async_api import async_playwright
 
 logger = logging.getLogger(__name__)
 
+# Global flag to prevent scraper from running while the browser binaries are being auto-installed
+PLAYWRIGHT_INSTALLING = False
+
 def clean_redirect_urls(url: str) -> str:
     """Unwrap search engine redirect links (Yahoo and DuckDuckGo) to retrieve the actual business/social URL."""
     if not url:
@@ -208,6 +211,13 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
     Internal Playwright Scraper logic that runs inside the dedicated loop thread.
     Returns: Tuple[Optional[str], Optional[str], Optional[str]] -> (email, website_url, email_source)
     """
+    global PLAYWRIGHT_INSTALLING
+    wait_sec = 0
+    while PLAYWRIGHT_INSTALLING and wait_sec < 60:
+        logger.info("Agent: Playwright browser is actively downloading. Waiting 5 seconds...")
+        await asyncio.sleep(5)
+        wait_sec += 5
+
     clean_name = company_name.replace("'", "").replace('"', '')
     search_query = urllib.parse.quote_plus(f'{clean_name} {location}')
     yahoo_url = f"https://search.yahoo.com/search?p={search_query}"

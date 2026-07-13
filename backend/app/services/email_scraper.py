@@ -28,6 +28,32 @@ def clean_redirect_urls(url: str) -> str:
                 return urllib.parse.unquote(target)
         except Exception:
             pass
+    elif 'bing.com/ck/a' in url:
+        try:
+            parsed = urllib.parse.urlparse(url)
+            qs = urllib.parse.parse_qs(parsed.query)
+            u_param = qs.get('u', [])
+            if u_param:
+                val = u_param[0]
+                # Strip leading 'a1' or 'a' to get the clean base64 payload
+                if val.startswith('a1'):
+                    b64_str = val[2:]
+                elif val.startswith('a'):
+                    b64_str = val[1:]
+                else:
+                    b64_str = val
+                
+                # Correct padding if needed
+                missing_padding = len(b64_str) % 4
+                if missing_padding:
+                    b64_str += '=' * (4 - missing_padding)
+                
+                import base64
+                decoded = base64.b64decode(b64_str).decode('utf-8', errors='ignore')
+                if decoded.startswith(('http://', 'https://')):
+                    return decoded
+        except Exception as err:
+            logger.warning(f"Failed to decode Bing redirect URL {url}: {err}")
     return url
 
 # Strict Regex to match valid emails
@@ -387,6 +413,24 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
                             return emails[0], None, "LinkedIn"
                     except Exception as e:
                         logger.warning(f"Error scraping LinkedIn page {li_page}: {e}")
+
+            # Direct Search Snippet Crawler Fallback: if no email was found on social profiles, query Bing directly
+            try:
+                logger.info("Agent: Email not found on profiles. Executing direct search engine snippet query...")
+                direct_query = f"{clean_name} {location} email"
+                bing_url = f"https://www.bing.com/search?q={urllib.parse.quote_plus(direct_query)}"
+                await page.goto(bing_url, wait_until="domcontentloaded", timeout=7000)
+                await asyncio.sleep(1.5)
+                
+                content = await page.content()
+                matches = EMAIL_REGEX.findall(content)
+                emails = [m.lower() for m in matches if is_valid_email(m)]
+                if emails:
+                    logger.info(f"Agent: Scraped email '{emails[0]}' directly from search result snippets.")
+                    await browser.close()
+                    return emails[0], None, "Direct Search"
+            except Exception as e:
+                logger.warning(f"Direct search snippet query failed: {e}")
 
             await browser.close()
             

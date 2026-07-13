@@ -282,9 +282,11 @@ async def search_companies_google_places(
     Use Google Places API (New) to search for companies (Text Search).
     If API quota is exhausted (429) or Key is missing, falls back to direct Playwright scraper.
     """
-    # Fallback immediately if Places API key is missing
-    if not settings.GOOGLE_PLACES_API_KEY:
-        logger.warning("GOOGLE_PLACES_API_KEY missing. Falling back to direct Google Maps crawling.")
+    # Force use of free fallback scraper to prevent API charges and quota limit errors (429)
+    FORCE_FREE_FALLBACK = True
+    
+    if FORCE_FREE_FALLBACK or not settings.GOOGLE_PLACES_API_KEY:
+        logger.warning("Using 100% free Google Maps Playwright crawler for lead search.")
         fallback_results = await scrape_google_maps_fallback(query, location)
         return fallback_results, None
 

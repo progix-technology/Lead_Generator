@@ -95,7 +95,9 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
     log_progress(f"Autopilot: Autopilot will target sending up to {limit_to_send} emails in this run.")
 
     # 2. Get search terms (AI recommended or rotation fallback)
-    use_ai_targets = current_settings.get("use_ai_targets", True)
+    # Prioritize manual search terms if configured by the user, bypassing AI lookup to ensure manual targets are respected
+    categories_list = current_settings.get("categories")
+    use_ai_targets = False if categories_list else current_settings.get("use_ai_targets", True)
     openrouter_key = current_settings.get("openrouter_api_key")
     
     category = None

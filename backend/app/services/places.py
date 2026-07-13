@@ -227,7 +227,7 @@ def query_ddg_local_sync(query: str, location: str) -> List[Dict[str, Any]]:
     }
     
     req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req, timeout=12.0) as response:
+    with urllib.request.urlopen(req, timeout=3.0) as response:
         html = response.read().decode('utf-8')
         data = json.loads(html)
         results = data.get("results", [])

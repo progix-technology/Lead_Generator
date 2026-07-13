@@ -121,22 +121,22 @@ async def scrape_url_for_emails(page, url: str) -> List[str]:
         logger.warning(f"Error scraping {url}: {e}")
         return []
 
-async def query_duckduckgo_for_links(page, query: str) -> List[str]:
-    """Queries DuckDuckGo HTML and returns all href links found on the page."""
-    ddg_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
+async def query_bing_for_links(page, query: str) -> List[str]:
+    """Queries Bing Search and returns all href links found on the page."""
+    bing_url = f"https://www.bing.com/search?q={urllib.parse.quote_plus(query)}"
     try:
-        logger.info(f"Scraper: Querying DuckDuckGo: {ddg_url}")
-        # Add basic headers
-        await page.goto(ddg_url, wait_until="domcontentloaded", timeout=12000)
+        logger.info(f"Scraper: Querying Bing: {bing_url}")
+        await page.goto(bing_url, wait_until="domcontentloaded", timeout=7000)
         await asyncio.sleep(1.5)
         
-        # DuckDuckGo HTML links are inside a.result__url classes
-        links = await page.locator("a.result__url").evaluate_all("elements => elements.map(e => e.href)")
-        if not links:
-            links = await page.locator("a[href]").evaluate_all("elements => elements.map(e => e.href)")
+        # Extract all result links
+        links = await page.evaluate("""() => {
+            const anchors = Array.from(document.querySelectorAll('a[href]'));
+            return anchors.map(a => a.href);
+        }""")
         return [clean_redirect_urls(l) for l in links]
     except Exception as e:
-        logger.warning(f"DuckDuckGo query failed for '{query}': {e}")
+        logger.warning(f"Bing query failed for '{query}': {e}")
         return []
 
 async def check_website_on_social_page(page) -> Optional[str]:
@@ -257,10 +257,10 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
             except Exception as e:
                 logger.warning(f"Yahoo search query failed: {e}")
 
-            # Fallback 1: DuckDuckGo general search if Yahoo returned nothing
+            # Fallback 1: Bing general search if Yahoo returned nothing
             if not facebook_url and not instagram_url and not linkedin_url:
-                logger.info("Yahoo search returned zero results. Executing general search on DuckDuckGo...")
-                ddg_links = await query_duckduckgo_for_links(page, f"{clean_name} {location}")
+                logger.info("Yahoo search returned zero results. Executing general search on Bing...")
+                ddg_links = await query_bing_for_links(page, f"{clean_name} {location}")
                 
                 for link in ddg_links:
                     if not link.startswith(('http://', 'https://')):
@@ -276,8 +276,8 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
             # Facebook URL targeted query fallback
             if not facebook_url:
                 try:
-                    logger.info(f"Agent: Facebook URL not found. Executing targeted DuckDuckGo query...")
-                    fb_links = await query_duckduckgo_for_links(page, f"{clean_name} {location} facebook")
+                    logger.info(f"Agent: Facebook URL not found. Executing targeted Bing query...")
+                    fb_links = await query_bing_for_links(page, f"{clean_name} {location} facebook")
                     for l in fb_links:
                         if 'facebook.com' in l and '/public/' not in l and '/events/' not in l:
                             facebook_url = l
@@ -315,8 +315,8 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
             # Instagram URL targeted query fallback
             if not instagram_url:
                 try:
-                    logger.info(f"Agent: Instagram URL not found. Executing targeted DuckDuckGo query...")
-                    ig_links = await query_duckduckgo_for_links(page, f"{clean_name} {location} instagram")
+                    logger.info(f"Agent: Instagram URL not found. Executing targeted Bing query...")
+                    ig_links = await query_bing_for_links(page, f"{clean_name} {location} instagram")
                     for l in ig_links:
                         if 'instagram.com' in l and '/p/' not in l:
                             instagram_url = l
@@ -350,8 +350,8 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
             # LinkedIn URL targeted query fallback
             if not linkedin_url:
                 try:
-                    logger.info(f"Agent: LinkedIn URL not found. Executing targeted DuckDuckGo query...")
-                    li_links = await query_duckduckgo_for_links(page, f"{clean_name} {location} linkedin")
+                    logger.info(f"Agent: LinkedIn URL not found. Executing targeted Bing query...")
+                    li_links = await query_bing_for_links(page, f"{clean_name} {location} linkedin")
                     for l in li_links:
                         if 'linkedin.com' in l and ('/company/' in l or '/in/' in l):
                             linkedin_url = l

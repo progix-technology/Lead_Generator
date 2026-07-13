@@ -52,11 +52,20 @@ export default function AutomatedCampaigns() {
     
     const pollLogs = async () => {
       let isFirstFetch = true;
+      let tick = 0;
       while (pollingActive) {
         try {
           const res = await automationService.getProgress();
           if (res && res.progress) {
             setConsoleLogs(res.progress);
+            
+            // Periodically refresh records list and stats (every 4.5s / 3 ticks) to update counts and emails live
+            if (tick % 3 === 0 || res.is_running === false) {
+              const history = await automationService.getRecords(0, 100);
+              setRecords(history.data || []);
+              setTotalCount(history.total_count || 0);
+              setTodayCount(history.today_count || 0);
+            }
             
             // Stop polling if the server says autopilot is not running and we've fetched once
             if (res.is_running === false) {
@@ -70,6 +79,7 @@ export default function AutomatedCampaigns() {
           console.error("Failed to poll progress:", err);
         }
         isFirstFetch = false;
+        tick++;
         if (pollingActive) {
           await new Promise(resolve => setTimeout(resolve, 1500));
         }
@@ -116,8 +126,7 @@ export default function AutomatedCampaigns() {
         const prog = await automationService.getProgress();
         if (prog && prog.progress && prog.progress.length > 0) {
           setConsoleLogs(prog.progress);
-          const lastLog = prog.progress[prog.progress.length - 1] || '';
-          const isActive = !lastLog.includes("Batch run completed") && !lastLog.trim().toLowerCase().includes("sleeping");
+          const isActive = prog.is_running === true;
           if (isActive) {
             setShowConsole(true);
             setTriggeringCycle(true);

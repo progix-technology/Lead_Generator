@@ -14,6 +14,7 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
 import AutomatedCampaigns from './pages/AutomatedCampaigns';
+import WebsiteAudit from './pages/WebsiteAudit';
 
 // A wrapper component that checks if the user is authenticated
 const ProtectedRoute = ({ children }) => {
@@ -58,6 +59,7 @@ const App = () => {
           <Route path="settings" element={<Settings />} />
           <Route path="logs" element={<Logs />} />
           <Route path="automation" element={<AutomatedCampaigns />} />
+          <Route path="audit" element={<WebsiteAudit />} />
         </Route>
 
         {/* Fallback route */}

@@ -15,6 +15,7 @@ export default function LeadDetails() {
   const [score, setScore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [auditing, setAuditing] = useState(false);
 
   useEffect(() => {
     const loadDetails = async () => {
@@ -50,6 +51,23 @@ export default function LeadDetails() {
       loadDetails();
     }
   }, [id]);
+
+  const handleRunAudit = async () => {
+    if (!company || !company.website) return;
+    try {
+      setAuditing(true);
+      const newAudit = await companyService.runWebsiteAudit(id, company.website);
+      setAudit(newAudit);
+      // Reload lead details to fetch updated status
+      const updatedCompany = await companyService.getCompanyById(id);
+      setCompany(updatedCompany);
+    } catch (err) {
+      console.error("Failed to run website audit:", err);
+      alert("Error: Failed to perform website audit. Please check if website is online.");
+    } finally {
+      setAuditing(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -127,11 +145,23 @@ export default function LeadDetails() {
               <div className="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200">
                 <p className="text-gray-500 text-sm mb-4">No audit data available for this business.</p>
                 {company.website ? (
-                  <Link to={`/audit?url=${encodeURIComponent(company.website)}`}>
-                    <Button variant="secondary" className="text-xs flex items-center gap-1 mx-auto">
-                      <FiPlusCircle /> Run Website Audit
-                    </Button>
-                  </Link>
+                  <Button 
+                    variant="secondary" 
+                    className="text-xs flex items-center gap-1 mx-auto"
+                    onClick={handleRunAudit}
+                    disabled={auditing}
+                  >
+                    {auditing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-slate-600 mr-1"></div>
+                        Auditing Site...
+                      </>
+                    ) : (
+                      <>
+                        <FiPlusCircle /> Run Website Audit
+                      </>
+                    )}
+                  </Button>
                 ) : (
                   <p className="text-xs text-gray-400">Add a website URL to this company to run an audit.</p>
                 )}

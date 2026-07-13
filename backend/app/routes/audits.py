@@ -32,6 +32,16 @@ async def get_audits_for_company(
     """Get all website audits belonging to a specific company."""
     return await audit_service.get_audits_for_company(company_id)
 
+@router.post("/company/{company_id}/run", response_model=WebsiteAuditResponse)
+async def run_website_audit(
+    company_id: str,
+    url: str,
+    audit_service: WebsiteAuditService = Depends(get_audit_service),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Any:
+    """Trigger a live website audit for a specific company."""
+    return await audit_service.run_live_audit(company_id, url)
+
 @router.get("/{id}", response_model=WebsiteAuditResponse)
 async def get_audit(
     id: str,

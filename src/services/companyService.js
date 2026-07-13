@@ -63,6 +63,12 @@ const companyService = {
         return response.data;
     },
 
+    // Trigger live website audit for a company
+    runWebsiteAudit: async (companyId, websiteUrl) => {
+        const response = await api.post(`/audits/company/${companyId}/run?url=${encodeURIComponent(websiteUrl)}`);
+        return response.data;
+    },
+
     // Fetch lead score for a specific company
     getLeadScoreForCompany: async (companyId) => {
         const response = await api.get(`/scores/company/${companyId}`);

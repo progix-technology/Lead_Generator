@@ -156,11 +156,33 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         address = company.get("address", "")
         website_url = company.get("website_url")
 
-        # ONLY target leads without a website!
-        # Yelp, Apple Maps, or other directory profiles do not count as custom websites.
+        # ONLY target leads without a website, or with a bad/slow website
+        is_redesign = False
+        seo_score = 0
+        ui_score = 0
+        performance_score = 0
+        suggestions = []
+        
         if website_url and not is_directory_url(website_url):
-            log_progress(f"Autopilot: Lead '{name}' has website: {website_url} (skipped)")
-            continue
+            log_progress(f"Autopilot: Lead '{name}' has a website. Running live audit speed & SEO checks...")
+            from app.services.audit import perform_live_website_audit
+            try:
+                audit_results = await perform_live_website_audit(website_url)
+                seo_score = audit_results["seo_score"]
+                ui_score = audit_results["ui_score"]
+                performance_score = audit_results["performance_score"]
+                suggestions = audit_results["suggestions"]
+                
+                avg_score = (seo_score + ui_score + performance_score) / 3
+                if avg_score >= 70:
+                    log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100) (skipped)")
+                    continue
+                else:
+                    log_progress(f"Autopilot: Target match (Outdated Website)! Lead '{name}' website has poor score ({avg_score:.1f}/100). Proceeding...")
+                    is_redesign = True
+            except Exception as audit_err:
+                log_progress(f"Autopilot: Failed to audit site '{website_url}': {audit_err} (skipped)")
+                continue
 
         # Prevent duplicate outreach: check if already exists in DB
         existing = await co_repo.collection.find_one({"name": name})
@@ -206,32 +228,57 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
             
             log_progress(f"Autopilot: AI extracted greeting name: '{greeting_name}'")
 
-            # Parse template placeholders
-            subject_tmpl = current_settings.get("subject_template", "")
-            body_tmpl = current_settings.get("body_template", "")
+            if is_redesign:
+                # Custom high-converting Redesign Pitch
+                subject = f"Quick suggestion for {name} about your website"
+                sug_bullets = "\n".join([f"• {s}" for s in suggestions]) if suggestions else "• Outdated responsive layout and performance bottlenecks."
+                
+                body = (
+                    f"Hello {greeting_name},\n\n"
+                    f"I hope you're doing well.\n\n"
+                    f"While researching businesses in the {category} sector across {location or 'your area'}, I checked your website ({website_url}) and ran a quick performance/SEO diagnostic. I noticed a few technical issues that might be affecting your user experience and search ranking:\n\n"
+                    f"• Speed/Performance Score: {performance_score}/100\n"
+                    f"• Mobile/UI Score: {ui_score}/100\n"
+                    f"• SEO Health Score: {seo_score}/100\n\n"
+                    f"Here are the specific recommendations generated:\n"
+                    f"{sug_bullets}\n\n"
+                    f"At Progix Technologies LLP, we specialize in high-performance web design and SEO. We can rebuild your website to load in under 1.5 seconds, make it 100% mobile-responsive, and integrate direct online bookings to convert more visitors into clients.\n\n"
+                    f"Would you be open to a quick call or a 1-page free homepage design mockup next week to see how your site can be modernized?\n\n"
+                    f"Thank you for your time, and I look forward to hearing from you.\n\n"
+                    f"Best Regards,\n\n"
+                    f"Abhinandan Dubey\n"
+                    f"Progix Technologies LLP\n"
+                    f"📞 +1 (916) 702-8905\n"
+                    f"✉️ progixtechnology@gmail.com\n"
+                    f"🌐 https://www.progixtechnology.com/"
+                )
+            else:
+                # Parse template placeholders
+                subject_tmpl = current_settings.get("subject_template", "")
+                body_tmpl = current_settings.get("body_template", "")
 
-            # Personalize placeholders
-            co_website = "your business"
-            co_industry = category
-            co_location = location or "your area"
-            current_platform = "Facebook"
-            service_type = "custom website design"
+                # Personalize placeholders
+                co_website = "your business"
+                co_industry = category
+                co_location = location or "your area"
+                current_platform = "Facebook"
+                service_type = "custom website design"
 
-            subject = subject_tmpl.replace("{{company}}", name)\
-                                  .replace("{{first_name}}", greeting_name)\
-                                  .replace("{{website}}", co_website)\
-                                  .replace("{{industry}}", co_industry)\
-                                  .replace("{{location}}", co_location)\
-                                  .replace("{{current_platform}}", current_platform)\
-                                  .replace("{{service_type}}", service_type)
+                subject = subject_tmpl.replace("{{company}}", name)\
+                                      .replace("{{first_name}}", greeting_name)\
+                                      .replace("{{website}}", co_website)\
+                                      .replace("{{industry}}", co_industry)\
+                                      .replace("{{location}}", co_location)\
+                                      .replace("{{current_platform}}", current_platform)\
+                                      .replace("{{service_type}}", service_type)
 
-            body = body_tmpl.replace("{{company}}", name)\
-                            .replace("{{first_name}}", greeting_name)\
-                            .replace("{{website}}", co_website)\
-                            .replace("{{industry}}", co_industry)\
-                            .replace("{{location}}", co_location)\
-                            .replace("{{current_platform}}", current_platform)\
-                            .replace("{{service_type}}", service_type)
+                body = body_tmpl.replace("{{company}}", name)\
+                                .replace("{{first_name}}", greeting_name)\
+                                .replace("{{website}}", co_website)\
+                                .replace("{{industry}}", co_industry)\
+                                .replace("{{location}}", co_location)\
+                                .replace("{{current_platform}}", current_platform)\
+                                .replace("{{service_type}}", service_type)
 
             html_body = f"<html><body><p>{body.replace(chr(10), '<br>')}</p></body></html>"
 
@@ -240,16 +287,31 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
             success = await send_smtp_email(email, subject, html_body, smtp_config=current_settings)
 
             # Save lead to companies collection (to prevent double emails in future)
-            await co_repo.create({
+            new_co = await co_repo.create({
                 "name": name,
                 "industry": category,
                 "location": location or address,
-                "website": None,
+                "website": website_url,
                 "phone": company.get("phone_number"),
                 "email": email,
-                "email_source": "Facebook",
-                "status": "Emailed" # Marked as emailed immediately
+                "email_source": email_source,
+                "status": "Audited" if is_redesign else "Emailed"
             })
+
+            # Save audit report if we audited their website
+            if is_redesign:
+                from app.repositories.audit import WebsiteAuditRepository
+                audit_repo = WebsiteAuditRepository(db)
+                await audit_repo.create({
+                    "company_id": new_co["id"],
+                    "website_url": website_url,
+                    "seo_score": seo_score,
+                    "ui_score": ui_score,
+                    "performance_score": performance_score,
+                    "suggestions": suggestions,
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow()
+                })
 
             if success:
                 # Log success to automation_records

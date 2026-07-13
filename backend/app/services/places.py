@@ -279,87 +279,62 @@ async def search_companies_google_places(
     page_token: Optional[str] = None
 ) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """
-    Use Google Places API (New) to search for companies (Text Search).
-    If API quota is exhausted (429) or Key is missing, falls back to direct Playwright scraper.
+    Use optimized search strategy to fetch, expand, query and deduplicate local businesses.
     """
-    # Force use of free fallback scraper to prevent API charges and quota limit errors (429)
-    FORCE_FREE_FALLBACK = True
+    from app.services.search_optimizer import (
+        expand_keyword, get_city_level_locations, generate_search_queries, deduplicate_leads
+    )
     
-    if FORCE_FREE_FALLBACK or not settings.GOOGLE_PLACES_API_KEY:
-        logger.warning("Using 100% free Google Maps Playwright crawler for lead search.")
-        fallback_results = await scrape_google_maps_fallback(query, location)
-        return fallback_results, None
-
-    url = "https://places.googleapis.com/v1/places:searchText"
-    headers = {
-        "Content-Type": "application/json",
-        "X-Goog-Api-Key": settings.GOOGLE_PLACES_API_KEY,
-        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,places.primaryTypeDisplayName,nextPageToken"
-    }
-
-    bbox = await geocode_location(location)
+    logger.info(f"Optimized Search: Starting lead search for query: '{query}', location: '{location}'")
     
-    payload = {
-        "pageSize": 20
-    }
+    # 1. City granularity expansion
+    target_locations = get_city_level_locations(location)
+    # 2. Keyword expansion
+    expanded_niches = expand_keyword(query)
     
-    if bbox:
-        south_lat, north_lat, west_lng, east_lng = bbox
-        payload["textQuery"] = query
-        payload["locationRestriction"] = {
-            "rectangle": {
-                "low": {"latitude": south_lat, "longitude": west_lng},
-                "high": {"latitude": north_lat, "longitude": east_lng}
-            }
-        }
-    else:
-        # Avoid using 'in' in searchText queries to bypass Google semantic query parsing failures
-        payload["textQuery"] = f"{query}, {location}" if location else query
-        
-    if page_token:
-        payload["pageToken"] = page_token
+    # Restrict to prevent extreme overload
+    if len(target_locations) > 1:
+        target_locations = target_locations[:4]
+    expanded_niches = expanded_niches[:3]
+    
+    all_leads = []
+    search_tasks = []
+    
+    async def perform_single_search(n_query: str, loc: str):
+        # Generate search phrases
+        search_phrases = generate_search_queries(n_query, loc)
+        # Search the top 2 generated phrases
+        leads_for_phrase = []
+        for phrase in search_phrases[:2]:
+            try:
+                results = await scrape_google_maps_fallback(phrase, "")
+                if results:
+                    leads_for_phrase.extend(results)
+            except Exception as e:
+                logger.error(f"Error searching phrase '{phrase}': {e}")
+        return leads_for_phrase
 
-    try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(url, headers=headers, json=payload, timeout=12.0)
+    # Build tasks list
+    for loc in target_locations:
+        for niche in expanded_niches:
+            search_tasks.append(perform_single_search(niche, loc))
             
-            # Fallback if API key is rate limited / quota exhausted
-            if response.status_code == 429 or "quota" in response.text.lower():
-                logger.warning(f"Google Places API quota exceeded ({response.status_code}). Triggering Playwright fallback.")
-                fallback_results = await scrape_google_maps_fallback(query, location)
-                return fallback_results, None
-                
-            if response.status_code != 200:
-                logger.error(f"Google Places API error ({response.status_code}): {response.text}")
-                fallback_results = await scrape_google_maps_fallback(query, location)
-                return fallback_results, None
-                
-            data = response.json()
-            places = data.get("places", [])
-            if not places:
-                logger.info("Google Places API returned 0 results. Triggering free fallback.")
-                fallback_results = await scrape_google_maps_fallback(query, location)
-                return fallback_results, None
-                
-            next_page_token = data.get("nextPageToken")
+    # Run searches concurrently with a limit of 2 concurrent tasks to be safe
+    sem = asyncio.Semaphore(2)
+    async def sem_task(task):
+        async with sem:
+            return await task
             
-            companies = []
-            for place in places:
-                company = {
-                    "name": place.get("displayName", {}).get("text", "Unknown"),
-                    "industry": place.get("primaryTypeDisplayName", {}).get("text", query.capitalize()),
-                    "address": place.get("formattedAddress", ""),
-                    "phone_number": place.get("nationalPhoneNumber", ""),
-                    "website_url": place.get("websiteUri", ""),
-                    "rating": place.get("rating"),
-                    "rating_count": place.get("userRatingCount")
-                }
-                companies.append(company)
-                
-            return companies, next_page_token
+    results = await asyncio.gather(*(sem_task(t) for t in search_tasks), return_exceptions=True)
+    
+    for res in results:
+        if isinstance(res, list):
+            all_leads.extend(res)
             
-    except Exception as e:
-        logger.error(f"Failed to fetch data from Google Places: {str(e)}. Attempting Playwright fallback.")
-        fallback_results = await scrape_google_maps_fallback(query, location)
-        return fallback_results, None
+    # 3. Deduplicate businesses
+    deduped_leads = deduplicate_leads(all_leads)
+    logger.info(f"Optimized Search Complete: Found {len(all_leads)} raw leads. Deduplicated to {len(deduped_leads)} high-quality leads.")
+    
+    return deduped_leads, None
+
 

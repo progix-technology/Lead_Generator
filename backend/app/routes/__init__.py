@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.routes import auth, companies, users, audits, scores, automation
+from app.routes import auth, companies, users, audits, scores, automation, notifications
 
 api_router = APIRouter()
 
@@ -10,3 +10,4 @@ api_router.include_router(users.router, prefix="/users", tags=["Users"])
 api_router.include_router(audits.router, prefix="/audits", tags=["Website Audits"])
 api_router.include_router(scores.router, prefix="/scores", tags=["Lead Scores"])
 api_router.include_router(automation.router, prefix="/automation", tags=["Autopilot"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])

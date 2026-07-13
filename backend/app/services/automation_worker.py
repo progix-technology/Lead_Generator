@@ -338,9 +338,13 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                     "error_message": "SMTP send failed"
                 })
                 log_progress(f"Autopilot: ✕ Failed to send SMTP email to '{name}' at '{email}'")
+                from app.routes.notifications import push_notification
+                push_notification("error", f"SMTP send failed for '{name}' ({email})", source="email")
 
         except Exception as err:
             log_progress(f"Autopilot: Error processing lead '{name}': {err}")
+            from app.routes.notifications import push_notification
+            push_notification("error", f"Lead processing error for '{name}': {err}", source="autopilot")
 
     log_progress(f"Autopilot: Cycle complete. Scanned: {scanned_count} leads, Sent: {sent_count} emails.")
     return {"status": "completed", "sent_count": sent_count, "scanned_count": scanned_count}
@@ -425,6 +429,8 @@ async def run_automation_scheduler():
                 logger.info("Autopilot: Autopilot is disabled. Sleeping...")
         except Exception as e:
             logger.error(f"Autopilot: Scheduler loop error: {e}")
+            from app.routes.notifications import push_notification
+            push_notification("error", f"Autopilot scheduler crashed: {e}", source="autopilot")
             
         # Check every 30 minutes
         await asyncio.sleep(1800)

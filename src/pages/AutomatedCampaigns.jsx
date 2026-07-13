@@ -523,7 +523,18 @@ export default function AutomatedCampaigns() {
               </div>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-gray-100">
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+              {successMsg && (
+                <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                  <FiCheckCircle /> {successMsg}
+                </span>
+              )}
+              {error && !successMsg && (
+                <span className="text-xs text-red-600 font-medium flex items-center gap-1">
+                  <FiAlertCircle /> {error}
+                </span>
+              )}
+              {!successMsg && !error && <span />}
               <Button 
                 variant="primary" 
                 onClick={handleSaveSettings}
@@ -588,7 +599,18 @@ export default function AutomatedCampaigns() {
               </div>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-gray-100">
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+              {successMsg && (
+                <span className="text-xs text-green-600 font-medium flex items-center gap-1">
+                  <FiCheckCircle /> {successMsg}
+                </span>
+              )}
+              {error && !successMsg && (
+                <span className="text-xs text-red-600 font-medium flex items-center gap-1">
+                  <FiAlertCircle /> {error}
+                </span>
+              )}
+              {!successMsg && !error && <span />}
               <Button 
                 variant="primary" 
                 onClick={handleSaveSettings}

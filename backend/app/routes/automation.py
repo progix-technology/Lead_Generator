@@ -45,8 +45,12 @@ async def update_settings(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
     """Update Autopilot configurations."""
+    print("DEBUG: update_settings received payload:", payload.model_dump())
     update_data = payload.model_dump(exclude_unset=True)
-    return await repo.update_settings(update_data)
+    print("DEBUG: update_data to save:", update_data)
+    result = await repo.update_settings(update_data)
+    print("DEBUG: update result:", result)
+    return result
 
 @router.get("/records", response_model=Dict[str, Any])
 async def get_records(

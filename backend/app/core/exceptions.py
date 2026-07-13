@@ -38,6 +38,8 @@ def add_exception_handlers(app):
     async def global_exception_handler(request: Request, exc: Exception):
         """Catches all other unhandled exceptions to prevent server crashes"""
         logger.error(f"Unhandled Exception at {request.url}: {str(exc)}", exc_info=True)
+        from app.routes.notifications import push_notification
+        push_notification("error", f"Server Error at {request.url.path}: {str(exc)[:200]}", source="api")
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": "Internal Server Error"}

@@ -165,7 +165,8 @@ async def check_website_on_social_page(page) -> Optional[str]:
                 'youtube.com', 'pinterest.com', 'tiktok.com', 'linktr.ee', 'google.com',
                 'yahoo.com', 'bing.com', 'duckduckgo.com', 'messenger.com', 'yelp.com',
                 'yellowpages.com', 'yp.com', 'angi.com', 'thumbtack.com', 'forbes.com',
-                'bbb.org', 'foursquare.com', 'manta.com', 'tripadvisor.com', 'houzz.com'
+                'bbb.org', 'foursquare.com', 'manta.com', 'tripadvisor.com', 'houzz.com',
+                'meta.com', 'whatsapp.com', 'wa.me', 'about.facebook.com'
             ]
             if any(d in link_lower for d in ignore_domains):
                 continue
@@ -223,6 +224,14 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
             )
             page = await context.new_page()
             
+            # Block heavy assets to load pages faster and prevent connection timeouts
+            async def block_resources(route):
+                if route.request.resource_type in ["image", "media", "font", "stylesheet"]:
+                    await route.abort()
+                else:
+                    await route.continue_()
+            await page.route("**/*", block_resources)
+            
             # 1. Search Yahoo
             try:
                 await page.goto(yahoo_url, wait_until="domcontentloaded", timeout=15000)
@@ -278,7 +287,7 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
 
             if facebook_url:
                 clean_fb = facebook_url.split('?')[0].rstrip('/')
-                fb_pages = [clean_fb, f"{clean_fb}/about", f"{clean_fb}/about_details"]
+                fb_pages = [clean_fb, f"{clean_fb}/about"]
                 for fb_page in fb_pages:
                     try:
                         logger.info(f"Agent: Deep scanning Facebook page: {fb_page}")

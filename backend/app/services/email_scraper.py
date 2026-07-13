@@ -155,8 +155,8 @@ async def query_bing_for_links(page, query: str) -> List[str]:
     bing_url = f"https://www.bing.com/search?q={urllib.parse.quote_plus(query)}"
     try:
         logger.info(f"Scraper: Querying Bing: {bing_url}")
-        await page.goto(bing_url, wait_until="domcontentloaded", timeout=7000)
-        await asyncio.sleep(1.5)
+        await page.goto(bing_url, wait_until="domcontentloaded", timeout=15000)
+        await asyncio.sleep(0.5)
         
         # Extract all result links
         links = await page.evaluate("""() => {

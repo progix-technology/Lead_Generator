@@ -46,33 +46,33 @@ export default function AutomatedCampaigns() {
     }
   }, [consoleLogs]);
 
-  // Polling loop triggered by triggeringCycle state to keep UI synced with server background thread
+  // Polling loop triggered by triggeringCycle or showConsole to keep UI synced with server background thread
   useEffect(() => {
-    let pollingActive = triggeringCycle;
+    let pollingActive = triggeringCycle || showConsole;
     
     const pollLogs = async () => {
+      let isFirstFetch = true;
       while (pollingActive) {
         try {
           const res = await automationService.getProgress();
           if (res && res.progress) {
             setConsoleLogs(res.progress);
             
-            // Stop polling when background batch worker is no longer running
+            // Stop polling if the server says autopilot is not running and we've fetched once
             if (res.is_running === false) {
-              pollingActive = false;
               setTriggeringCycle(false);
-              
-              // Refresh database stats
-              const history = await automationService.getRecords(0, 100);
-              setRecords(history.data || []);
-              setTotalCount(history.total_count || 0);
-              setTodayCount(history.today_count || 0);
+              if (!isFirstFetch) {
+                pollingActive = false;
+              }
             }
           }
         } catch (err) {
           console.error("Failed to poll progress:", err);
         }
-        await new Promise(resolve => setTimeout(resolve, 1500));
+        isFirstFetch = false;
+        if (pollingActive) {
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
       }
     };
 
@@ -83,7 +83,7 @@ export default function AutomatedCampaigns() {
     return () => {
       pollingActive = false;
     };
-  }, [triggeringCycle]);
+  }, [triggeringCycle, showConsole]);
 
   useEffect(() => {
     fetchData();
@@ -292,6 +292,17 @@ export default function AutomatedCampaigns() {
               <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
           </div>
+
+          <Button 
+            variant="secondary"
+            className="flex items-center gap-1.5 shadow-sm text-xs py-2.5 px-4 border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold cursor-pointer"
+            onClick={() => setShowConsole(prev => !prev)}
+          >
+            <span className="flex items-center gap-1">
+              <span className={`h-1.5 w-1.5 rounded-full ${showConsole ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
+              {showConsole ? 'Hide Terminal 📺' : 'Show Terminal 📺'}
+            </span>
+          </Button>
 
           <Button 
             variant="primary" 

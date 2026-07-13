@@ -56,7 +56,10 @@ CATEGORIES = [
     "Chiropractors", "Veterinarians", "Acupuncture Clinics", "Optometrists",
     "Yoga Studios", "Dance Schools", "Daycare Centers", "Driving Schools", "Tailor Shops",
     "Roofing Contractors", "HVAC Services", "Plumbers", "Electricians", "Dentists",
-    "Catering Services", "Auto Repair"
+    "Catering Services", "Auto Repair",
+    "Cosmetic Dentists", "Orthodontists", "IVF Clinics", "Medical Spas", "Corporate Lawyers", "Accountants",
+    "Solar Panel Installers", "Swimming Pool Builders", "Custom Home Builders", "Commercial HVAC", "Commercial Roofing", "Interior Designers",
+    "Logistics Companies", "Consulting Agencies", "Corporate Event Planners"
 ]
 LOCATIONS = [
     "Sunnyvale, CA", "Santa Clara, CA", "Mountain View, CA", "Palo Alto, CA",

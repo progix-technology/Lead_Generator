@@ -30,7 +30,10 @@ class AutomationRepository:
             "Chiropractors", "Veterinarians", "Acupuncture Clinics", "Optometrists",
             "Yoga Studios", "Dance Schools", "Daycare Centers", "Driving Schools", "Tailor Shops",
             "Roofing Contractors", "HVAC Services", "Plumbers", "Electricians", "Dentists",
-            "Catering Services", "Auto Repair"
+            "Catering Services", "Auto Repair",
+            "Cosmetic Dentists", "Orthodontists", "IVF Clinics", "Medical Spas", "Corporate Lawyers", "Accountants",
+            "Solar Panel Installers", "Swimming Pool Builders", "Custom Home Builders", "Commercial HVAC", "Commercial Roofing", "Interior Designers",
+            "Logistics Companies", "Consulting Agencies", "Corporate Event Planners"
         ]
         default_locations = [
             "Sunnyvale, CA", "Santa Clara, CA", "Mountain View, CA", "Palo Alto, CA",
@@ -46,7 +49,7 @@ class AutomationRepository:
             default_settings = {
                 "enabled": False,
                 "subject_template": "Helping {{company}} Strengthen Its Online Presence",
-                "body_template": "Hello {{first_name}},\n\nI hope you're doing well.\n\nWhile researching businesses in the {{industry}} sector across {{location}}, I came across {{company}}. I was impressed by your local presence and the reputation you've built within your community.\n\nI noticed that customers currently rely primarily on {{current_platform}}, as there doesn't appear to be a dedicated business website. While social media and business listings are great for visibility, many customers prefer visiting a professional website before making a purchase, booking a service, or getting in touch.\n\nA dedicated website could help you:\n\n• Showcase your {{service_type}} with a clean, modern design\n• Display your contact information, business hours, and location in one place\n• Improve your visibility on Google through local SEO\n• Promote offers, announcements, and new services more effectively\n• Build greater trust with new customers and strengthen your brand online\n\nAt Progix Technologies LLP, we help businesses create modern, mobile-friendly websites designed to improve customer experience, increase online visibility, and generate more direct enquiries.\n\nIf you're interested, we'd be happy to prepare a complimentary homepage concept tailored specifically for {{company}}, along with a few ideas on how your online presence could be further enhanced.\n\nThank you for your time, and I look forward to hearing from you.\n\nBest Regards,\n\nAbhinandan Dubey\nProgix Technologies LLP\n📞 +1 (916) 702-8905\n✉️ progixtechnology@gmail.com\n🌐 https://www.progixtechnology.com/",
+                "body_template": "Hello {{first_name}},\n\nI hope you're doing well.\n\nWhile researching businesses in the {{industry}} sector across {{location}}, I came across {{company}}.\ I was impressed by your local presence and the reputation you've built within your community.\n\nI noticed that customers currently rely primarily on {{current_platform}}, as there doesn't appear to be a dedicated business website. While social media and business listings are great for visibility, many customers prefer visiting a professional website before making a purchase, booking a service, or getting in touch.\n\nA dedicated website could help you:\n\n• Showcase your {{service_type}} with a clean, modern design\n• Display your contact information, business hours, and location in one place\n• Improve your visibility on Google through local SEO\n• Promote offers, announcements, and new services more effectively\n• Build greater trust with new customers and strengthen your brand online\n\nAt Progix Technologies LLP, we help businesses create modern, mobile-friendly websites designed to improve customer experience, increase online visibility, and generate more direct enquiries.\n\nIf you're interested, we'd be happy to prepare a complimentary homepage concept tailored specifically for {{company}}, along with a few ideas on how your online presence could be further enhanced.\n\nThank you for your time, and I look forward to hearing from you.\n\nBest Regards,\n\nAbhinandan Dubey\nProgix Technologies LLP\n📞 +1 (916) 702-8905\n✉️ progixtechnology@gmail.com\n🌐 https://www.progixtechnology.com/",
                 "search_index": 0,
                 "categories": default_categories,
                 "locations": default_locations,
@@ -68,7 +71,10 @@ class AutomationRepository:
                 current_cats = doc.get("categories", [])
                 new_additions = [
                     "Roofing Contractors", "HVAC Services", "Plumbers", "Electricians", 
-                    "Dentists", "Catering Services", "Auto Repair"
+                    "Dentists", "Catering Services", "Auto Repair",
+                    "Cosmetic Dentists", "Orthodontists", "IVF Clinics", "Medical Spas", "Corporate Lawyers", "Accountants",
+                    "Solar Panel Installers", "Swimming Pool Builders", "Custom Home Builders", "Commercial HVAC", "Commercial Roofing", "Interior Designers",
+                    "Logistics Companies", "Consulting Agencies", "Corporate Event Planners"
                 ]
                 merged_needed = False
                 for a in new_additions:

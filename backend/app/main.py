@@ -33,6 +33,34 @@ async def lifespan(app: FastAPI):
     
     # Auto-install Playwright Chromium browser asynchronously so it doesn't block server startup
     def install_playwright():
+        import os
+        # Cross-platform check if Playwright Chromium folder exists
+        paths = []
+        user_profile = os.environ.get("USERPROFILE")
+        if user_profile:
+            paths.append(os.path.join(user_profile, "AppData", "Local", "ms-playwright"))
+        home = os.environ.get("HOME")
+        if home:
+            paths.append(os.path.join(home, ".cache", "ms-playwright"))
+            paths.append(os.path.join(home, "Library", "Caches", "ms-playwright"))
+
+        is_installed = False
+        for path in paths:
+            if os.path.exists(path):
+                try:
+                    for item in os.listdir(path):
+                        if item.startswith("chromium-"):
+                            is_installed = True
+                            break
+                except Exception:
+                    pass
+            if is_installed:
+                break
+
+        if is_installed:
+            logger.info("FastAPI Lifespan: Playwright Chromium browser is already installed. Skipping auto-install.")
+            return
+
         import app.services.email_scraper as email_scraper
         try:
             import subprocess

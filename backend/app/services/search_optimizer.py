@@ -156,6 +156,14 @@ def generate_search_queries(category: str, location: str) -> List[str]:
         
     return final_queries
 
+def generate_map_search_queries(category: str, location: str) -> List[str]:
+    """Generates clean, maps-friendly search phrases (without boolean exclusions or contact modifiers)."""
+    return [
+        f"{category} in {location}",
+        f"{category} {location}",
+        f"{category} near {location}"
+    ]
+
 def normalize_business_name(name: str) -> str:
     """Normalizes business name to prevent duplicates (ignores casing, accents, punctuation & spaces)."""
     if not name:

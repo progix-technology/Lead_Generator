@@ -282,7 +282,7 @@ async def search_companies_google_places(
     Use optimized search strategy to fetch, expand, query and deduplicate local businesses.
     """
     from app.services.search_optimizer import (
-        expand_keyword, get_city_level_locations, generate_search_queries, deduplicate_leads
+        expand_keyword, get_city_level_locations, generate_map_search_queries, deduplicate_leads
     )
     
     logger.info(f"Optimized Search: Starting lead search for query: '{query}', location: '{location}'")
@@ -301,8 +301,8 @@ async def search_companies_google_places(
     search_tasks = []
     
     async def perform_single_search(n_query: str, loc: str):
-        # Generate search phrases
-        search_phrases = generate_search_queries(n_query, loc)
+        # Generate clean search phrases optimized for local map search
+        search_phrases = generate_map_search_queries(n_query, loc)
         # Search the top 2 generated phrases
         leads_for_phrase = []
         for phrase in search_phrases[:2]:

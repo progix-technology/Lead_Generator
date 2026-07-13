@@ -55,8 +55,8 @@ def clean_redirect_urls(url: str) -> str:
                 decoded = base64.b64decode(b64_str).decode('utf-8', errors='ignore')
                 if decoded.startswith(('http://', 'https://')):
                     return decoded
-        except Exception as err:
-            logger.warning(f"Failed to decode Bing redirect URL {url}: {err}")
+        except Exception:
+            pass
     return url
 
 # Strict Regex to match valid emails

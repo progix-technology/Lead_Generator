@@ -206,6 +206,7 @@ def is_social_url(url: str) -> bool:
 async def find_company_email(
     company_name: str,
     location: str = "",
+    phone_number: str = "",
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
     """
@@ -214,7 +215,7 @@ async def find_company_email(
     and runs SMTP Handshake Verification to guarantee delivery.
     """
     # 1. Playwright Web-search (Yahoo + Website Crawling)
-    email, website_url, email_source = await find_email_for_company(company_name, location)
+    email, website_url, email_source = await find_email_for_company(company_name, location, phone_number)
     
     # 2. Fallback: WHOIS Registry Email Crawler (if website exists but no email was found)
     if not email and website_url:

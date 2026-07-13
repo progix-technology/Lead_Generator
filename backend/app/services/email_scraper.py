@@ -206,7 +206,7 @@ async def check_website_on_social_page(page) -> Optional[str]:
         logger.warning(f"Error checking website on social page: {e}")
     return None
 
-async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+async def run_playwright_scraper(company_name: str, location: str, phone_number: str = "") -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
     Internal Playwright Scraper logic that runs inside the dedicated loop thread.
     Returns: Tuple[Optional[str], Optional[str], Optional[str]] -> (email, website_url, email_source)
@@ -442,6 +442,27 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
             except Exception as e:
                 logger.warning(f"Direct search snippet query failed: {e}")
 
+            # Brahmastra 3: Reverse Phone Number Mapping query on Bing
+            if phone_number:
+                try:
+                    clean_phone = re.sub(r'[^\d+]', '', phone_number)
+                    if len(clean_phone) >= 7:
+                        logger.info(f"Agent: Executing Reverse Phone Mapping query for '{phone_number}'...")
+                        phone_query = f'"{phone_number}" email'
+                        bing_phone_url = f"https://www.bing.com/search?q={urllib.parse.quote_plus(phone_query)}"
+                        await page.goto(bing_phone_url, wait_until="domcontentloaded", timeout=7000)
+                        await asyncio.sleep(1.5)
+                        
+                        content = await page.content()
+                        matches = EMAIL_REGEX.findall(content)
+                        emails = [m.lower() for m in matches if is_valid_email(m)]
+                        if emails:
+                            logger.info(f"Agent: Scraped email '{emails[0]}' via Reverse Phone mapping on Bing.")
+                            await browser.close()
+                            return emails[0], None, "Reverse Phone Search"
+                except Exception as e:
+                    logger.warning(f"Reverse Phone mapping query failed: {e}")
+
             await browser.close()
             
     except Exception as e:
@@ -449,7 +470,7 @@ async def run_playwright_scraper(company_name: str, location: str) -> Tuple[Opti
 
     return None, None, None
 
-def find_email_for_company_in_thread(company_name: str, location: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+def find_email_for_company_in_thread(company_name: str, location: str, phone_number: str = "") -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
     Synchronous worker running in a separate OS thread to execute the Playwright coroutine
     with a fresh ProactorEventLoop.
@@ -460,13 +481,13 @@ def find_email_for_company_in_thread(company_name: str, location: str) -> Tuple[
     loop = asyncio.new_event_loop()
     try:
         asyncio.set_event_loop(loop)
-        return loop.run_until_complete(run_playwright_scraper(company_name, location))
+        return loop.run_until_complete(run_playwright_scraper(company_name, location, phone_number))
     finally:
         loop.close()
 
-async def find_email_for_company(company_name: str, location: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+async def find_email_for_company(company_name: str, location: str, phone_number: str = "") -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
     Public API of the email scraper.
     Delegates execution to a separate thread to prevent asyncio loop clashes in Uvicorn on Windows.
     """
-    return await asyncio.to_thread(find_email_for_company_in_thread, company_name, location)
+    return await asyncio.to_thread(find_email_for_company_in_thread, company_name, location, phone_number)

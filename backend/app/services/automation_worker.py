@@ -173,7 +173,7 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         # Deep crawl emails
         try:
             log_progress(f"Autopilot: Crawling social profiles and searching contact info for '{name}'...")
-            email, discovered_web, email_source = await find_email_for_company(name, location)
+            email, discovered_web, email_source = await find_email_for_company(name, location, company.get("phone_number", ""))
             
             if discovered_web:
                 log_progress(f"Autopilot: Lead '{name}' has a discovered website: '{discovered_web}' (skipped)")

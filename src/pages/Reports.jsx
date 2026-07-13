@@ -12,7 +12,10 @@ import {
   FiTrendingUp, 
   FiSearch, 
   FiEye,
-  FiActivity
+  FiActivity,
+  FiMail,
+  FiSend,
+  FiLayout
 } from 'react-icons/fi';
 
 export default function Reports() {
@@ -23,6 +26,7 @@ export default function Reports() {
   // Day-wise filter (format YYYY-MM-DD or empty for "All Time")
   const [selectedDate, setSelectedDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [campaignType, setCampaignType] = useState('all'); // 'all', 'standard', 'redesign'
   
   // Modal Preview States
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -62,6 +66,16 @@ export default function Reports() {
     if (selectedDate) {
       const recordDate = record.sent_at ? record.sent_at.split('T')[0] : '';
       if (recordDate !== selectedDate) return false;
+    }
+    // Campaign Type filter
+    if (campaignType === 'redesign') {
+      const isRedesign = (record.subject || '').toLowerCase().includes('website') || 
+                         (record.body || '').toLowerCase().includes('score:');
+      if (!isRedesign) return false;
+    } else if (campaignType === 'standard') {
+      const isRedesign = (record.subject || '').toLowerCase().includes('website') || 
+                         (record.body || '').toLowerCase().includes('score:');
+      if (isRedesign) return false;
     }
     // Search keyword filter
     if (searchTerm.trim()) {
@@ -145,6 +159,7 @@ export default function Reports() {
   const handleClearFilters = () => {
     setSelectedDate('');
     setSearchTerm('');
+    setCampaignType('all');
   };
 
   if (loading) {
@@ -203,6 +218,43 @@ export default function Reports() {
                 ))}
               </select>
             </div>
+
+            {/* Campaign Type Segmented Control */}
+            <div className="flex bg-gray-150 p-0.5 rounded-lg border border-gray-200/80 ml-2">
+              <button
+                type="button"
+                onClick={() => setCampaignType('all')}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                  campaignType === 'all'
+                    ? 'bg-white text-gray-850 shadow-xs'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <FiMail size={11} /> All
+              </button>
+              <button
+                type="button"
+                onClick={() => setCampaignType('standard')}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                  campaignType === 'standard'
+                    ? 'bg-white text-gray-850 shadow-xs'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <FiSend size={11} /> Standard
+              </button>
+              <button
+                type="button"
+                onClick={() => setCampaignType('redesign')}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-all flex items-center gap-1 cursor-pointer ${
+                  campaignType === 'redesign'
+                    ? 'bg-white text-gray-850 shadow-xs'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                <FiLayout size={11} /> Redesign
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -220,7 +272,7 @@ export default function Reports() {
               />
             </div>
             
-            {(selectedDate || searchTerm) && (
+            {(selectedDate || searchTerm || campaignType !== 'all') && (
               <button
                 onClick={handleClearFilters}
                 className="text-xs text-red-500 hover:text-red-700 font-semibold cursor-pointer whitespace-nowrap"

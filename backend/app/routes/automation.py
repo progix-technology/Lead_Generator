@@ -45,11 +45,14 @@ async def update_settings(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
     """Update Autopilot configurations."""
-    print("DEBUG: update_settings received payload:", payload.model_dump())
     update_data = payload.model_dump(exclude_unset=True)
-    print("DEBUG: update_data to save:", update_data)
+    
+    # If the user disables autopilot, cancel any active background batch immediately
+    if "enabled" in update_data and not update_data["enabled"]:
+        from app.services.automation_worker import request_cancellation
+        request_cancellation()
+        
     result = await repo.update_settings(update_data)
-    print("DEBUG: update result:", result)
     return result
 
 @router.get("/records", response_model=Dict[str, Any])
@@ -84,6 +87,11 @@ async def trigger_cycle(
     try:
         repo = AutomationRepository(db)
         config = await repo.get_settings()
+        if not config.get("enabled", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Autopilot is OFF. Please enable it before triggering a batch run."
+            )
         batch_target = config.get("batch_email_limit", 5)
         
         # Dispatch task to background to prevent HTTP gateway timeouts (e.g. 504) during long runs

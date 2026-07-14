@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import re
+import traceback
 from datetime import datetime
 from typing import Dict, Any, List
 
@@ -19,7 +20,13 @@ logger = logging.getLogger(__name__)
 # Global list to track live progress of the automation cycle for frontend display
 automation_progress: List[str] = []
 is_batch_running: bool = False
+cancel_requested: bool = False
 last_log_date = None
+
+def request_cancellation():
+    global cancel_requested
+    cancel_requested = True
+    log_progress("Autopilot: Cancellation requested by user. Halting execution...")
 
 def is_directory_url(url: str) -> bool:
     """Helper to detect if a URL is a directory listing profile (like Yelp) rather than a custom business website."""
@@ -48,6 +55,17 @@ def log_progress(msg: str):
     timestamp = ist_now.strftime("%H:%M:%S")
     automation_progress.append(f"[{timestamp}] {msg}")
 
+def _safe_str(value: Any, default: str = "") -> str:
+    if value is None:
+        return default
+    return str(value)
+
+def _apply_template(template: Any, values: Dict[str, Any]) -> str:
+    rendered = _safe_str(template, "")
+    for key, value in values.items():
+        rendered = rendered.replace(f"{{{{{key}}}}}", _safe_str(value, ""))
+    return rendered
+
 CATEGORIES = [
     "Carpenters", "Locksmiths", "Paving Contractors", "Painting Contractors",
     "Window Cleaning", "Carpet Cleaning", "House Cleaning", "Tree Services",
@@ -59,7 +77,29 @@ CATEGORIES = [
     "Catering Services", "Auto Repair",
     "Cosmetic Dentists", "Orthodontists", "IVF Clinics", "Medical Spas", "Corporate Lawyers", "Accountants",
     "Solar Panel Installers", "Swimming Pool Builders", "Custom Home Builders", "Commercial HVAC", "Commercial Roofing", "Interior Designers",
-    "Logistics Companies", "Consulting Agencies", "Corporate Event Planners"
+    "Logistics Companies", "Consulting Agencies", "Corporate Event Planners",
+    "General Contractors", "Kitchen Remodeling", "Bathroom Remodeling", "Flooring Contractors",
+    "Garage Door Repair", "Pest Control", "Water Damage Restoration", "Mold Remediation",
+    "Landscaping Services", "Lawn Care", "Pressure Washing", "Gutter Cleaning",
+    "Pool Cleaning Services", "Handyman Services", "Deck Builders", "Masonry Contractors",
+    "Glass Repair Services", "Emergency Plumbers", "Emergency Electricians", "Septic Services",
+    "Mobile Car Detailing", "Tire Shops", "Auto Body Shops", "Windshield Repair",
+    "Transmission Repair", "Brake Repair", "Oil Change Services", "Car Wash",
+    "Personal Injury Lawyers", "Immigration Lawyers", "Family Lawyers", "Bankruptcy Lawyers",
+    "Tax Consultants", "Bookkeeping Services", "Payroll Services", "Insurance Agencies",
+    "Real Estate Agents", "Mortgage Brokers", "Property Management", "Home Inspectors",
+    "Dermatology Clinics", "Pediatric Clinics", "Dental Implants Clinics", "Urgent Care Clinics",
+    "Psychology Clinics", "Speech Therapy Centers", "Occupational Therapy Centers", "Home Healthcare Services",
+    "Med Spa Clinics", "Hair Salons", "Nail Salons", "Barber Shops",
+    "Beauty Clinics", "Eyelash Studios", "Tattoo Studios", "Massage Therapy",
+    "Gyms", "Personal Trainers", "Pilates Studios", "Crossfit Gyms",
+    "Martial Arts Schools", "Music Schools", "Tutoring Centers", "Test Prep Centers",
+    "Preschools", "Private Schools", "Senior Care Services", "Assisted Living Facilities",
+    "Restaurants", "Coffee Shops", "Bakeries", "Food Trucks",
+    "Cafes", "Cloud Kitchens", "Pet Grooming", "Pet Boarding",
+    "IT Support Services", "Managed IT Services", "Cybersecurity Consultants", "Digital Marketing Agencies",
+    "SEO Agencies", "Web Design Agencies", "Software Development Companies", "Recruitment Agencies",
+    "Staffing Agencies", "Printing Services", "Signage Companies", "Security Camera Installation"
 ]
 LOCATIONS = [
     "Sunnyvale, CA", "Santa Clara, CA", "Mountain View, CA", "Palo Alto, CA",
@@ -67,7 +107,22 @@ LOCATIONS = [
     "San Ramon, CA", "Walnut Creek, CA", "Concord, CA", "Bakersfield, CA",
     "Modesto, CA", "Stockton, CA", "Sacramento, CA", "Elk Grove, CA",
     "Rancho Cordova, CA", "Davis, CA", "Woodland, CA", "Napa, CA",
-    "San Rafael, CA", "Novato, CA", "Petaluma, CA", "Santa Rosa, CA", "Berkeley, CA"
+    "San Rafael, CA", "Novato, CA", "Petaluma, CA", "Santa Rosa, CA", "Berkeley, CA",
+    "Los Angeles, CA", "San Diego, CA", "San Jose, CA", "San Francisco, CA",
+    "Long Beach, CA", "Anaheim, CA", "Irvine, CA", "Riverside, CA",
+    "Phoenix, AZ", "Mesa, AZ", "Scottsdale, AZ", "Tempe, AZ",
+    "Las Vegas, NV", "Henderson, NV", "Reno, NV", "Portland, OR",
+    "Seattle, WA", "Tacoma, WA", "Spokane, WA", "Denver, CO",
+    "Colorado Springs, CO", "Dallas, TX", "Houston, TX", "Austin, TX",
+    "San Antonio, TX", "Fort Worth, TX", "El Paso, TX", "Chicago, IL",
+    "Naperville, IL", "Miami, FL", "Orlando, FL", "Tampa, FL",
+    "Jacksonville, FL", "Fort Lauderdale, FL", "Atlanta, GA", "Charlotte, NC",
+    "Raleigh, NC", "Nashville, TN", "New York, NY", "Brooklyn, NY",
+    "Queens, NY", "Buffalo, NY", "Jersey City, NJ", "Newark, NJ",
+    "Philadelphia, PA", "Pittsburgh, PA", "Boston, MA", "Worcester, MA",
+    "Washington, DC", "Baltimore, MD", "Detroit, MI", "Minneapolis, MN",
+    "St. Paul, MN", "Columbus, OH", "Cleveland, OH", "Cincinnati, OH",
+    "Indianapolis, IN", "Kansas City, MO", "St. Louis, MO", "New Orleans, LA"
 ]
 
 async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]:
@@ -76,8 +131,12 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
     Queries Google Places, filters for website-less leads, crawls emails,
     checks for Facebook source, SMTP verifies them, and auto-sends pitches.
     """
-    global automation_progress
+    global automation_progress, cancel_requested
     
+    if cancel_requested:
+        log_progress("Autopilot: Cycle aborted due to cancel request.")
+        return {"status": "skipped", "reason": "cancelled"}
+        
     log_progress("Autopilot: Initializing automated outreach cycle...")
     
     repo = AutomationRepository(db)
@@ -85,6 +144,10 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
     co_service = CompanyService(co_repo)
 
     current_settings = await repo.get_settings()
+    if not current_settings.get("enabled", False):
+        log_progress("Autopilot: Cycle skipped because autopilot is disabled.")
+        return {"status": "skipped", "reason": "disabled"}
+
     daily_limit = current_settings.get("daily_email_limit", 20)
     
     # 1. Check daily limit
@@ -134,6 +197,10 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
     if batch_targets is not None:
         batch_targets.append(f"{category} | {location}")
 
+    if cancel_requested:
+        log_progress("Autopilot: Cycle aborted due to cancel request.")
+        return {"status": "skipped", "reason": "cancelled"}
+
     # 3. Search Google Places fallback scraper
     log_progress(f"Autopilot: Fetching local businesses from Google Maps...")
     results, _ = await search_companies_google_places(category, location)
@@ -147,12 +214,22 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
 
     # 5. Process results
     for company in results:
+        if cancel_requested:
+            log_progress("Autopilot: Cycle aborted by user request.")
+            break
+
+        # Re-check toggle during long-running loops so OFF takes effect mid-batch.
+        latest_settings = await repo.get_settings()
+        if not latest_settings.get("enabled", False):
+            log_progress("Autopilot: Cycle halted because autopilot was turned OFF.")
+            break
+            
         if sent_count >= limit_to_send:
             log_progress("Autopilot: Daily campaign outreach target of 10 reached. Halting cycle.")
             break
 
         scanned_count += 1
-        name = company.get("name")
+        name = _safe_str(company.get("name"), "Unknown Business")
         address = company.get("address", "")
         website_url = company.get("website_url")
 
@@ -214,9 +291,21 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
             log_progress(f"Autopilot: Verified email '{email}' found via {email_source}! Performing SMTP mailbox validation...")
 
             # SMTP Verification Check
-            is_valid, _ = await verify_email_existence(email)
+            is_valid, verification_reason = await verify_email_existence(email)
             if not is_valid:
-                log_progress(f"Autopilot: Email '{email}' failed active mailbox validation checks (skipped).")
+                log_progress(
+                    f"Autopilot: Email '{email}' is unverified. Reason: {verification_reason} (skipped)."
+                )
+                await repo.create_record({
+                    "company_name": name,
+                    "email": email,
+                    "category": category,
+                    "location": location,
+                    "subject": None,
+                    "body": None,
+                    "status": "Unverified",
+                    "error_message": verification_reason
+                })
                 continue
 
             log_progress(f"Autopilot: Email '{email}' validated successfully. Running AI greeting name extraction...")
@@ -232,24 +321,29 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 # Custom high-converting Redesign Pitch from settings
                 subject_tmpl = current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
                 body_tmpl = current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
+                website_for_template = website_url or "their website"
                 
                 sug_bullets = "\n".join([f"• {s}" for s in suggestions]) if suggestions else "• Outdated responsive layout and performance bottlenecks."
-                
-                subject = subject_tmpl.replace("{{company}}", name)\
-                                      .replace("{{first_name}}", greeting_name)\
-                                      .replace("{{website}}", website_url)\
-                                      .replace("{{industry}}", category)\
-                                      .replace("{{location}}", location or "your area")
-                                      
-                body = body_tmpl.replace("{{company}}", name)\
-                                .replace("{{first_name}}", greeting_name)\
-                                .replace("{{website}}", website_url)\
-                                .replace("{{industry}}", category)\
-                                .replace("{{location}}", location or "your area")\
-                                .replace("{{performance_score}}", str(performance_score))\
-                                .replace("{{ui_score}}", str(ui_score))\
-                                .replace("{{seo_score}}", str(seo_score))\
-                                .replace("{{suggestions}}", sug_bullets)
+
+                subject = _apply_template(subject_tmpl, {
+                    "company": name,
+                    "first_name": greeting_name,
+                    "website": website_for_template,
+                    "industry": category,
+                    "location": location or "your area"
+                })
+
+                body = _apply_template(body_tmpl, {
+                    "company": name,
+                    "first_name": greeting_name,
+                    "website": website_for_template,
+                    "industry": category,
+                    "location": location or "your area",
+                    "performance_score": performance_score,
+                    "ui_score": ui_score,
+                    "seo_score": seo_score,
+                    "suggestions": sug_bullets
+                })
             else:
                 # Parse template placeholders
                 subject_tmpl = current_settings.get("subject_template") or ""
@@ -262,23 +356,27 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 current_platform = "Facebook"
                 service_type = "custom website design"
 
-                subject = subject_tmpl.replace("{{company}}", name)\
-                                      .replace("{{first_name}}", greeting_name)\
-                                      .replace("{{website}}", co_website)\
-                                      .replace("{{industry}}", co_industry)\
-                                      .replace("{{location}}", co_location)\
-                                      .replace("{{current_platform}}", current_platform)\
-                                      .replace("{{service_type}}", service_type)
+                subject = _apply_template(subject_tmpl, {
+                    "company": name,
+                    "first_name": greeting_name,
+                    "website": co_website,
+                    "industry": co_industry,
+                    "location": co_location,
+                    "current_platform": current_platform,
+                    "service_type": service_type
+                })
 
-                body = body_tmpl.replace("{{company}}", name)\
-                                .replace("{{first_name}}", greeting_name)\
-                                .replace("{{website}}", co_website)\
-                                .replace("{{industry}}", co_industry)\
-                                .replace("{{location}}", co_location)\
-                                .replace("{{current_platform}}", current_platform)\
-                                .replace("{{service_type}}", service_type)
+                body = _apply_template(body_tmpl, {
+                    "company": name,
+                    "first_name": greeting_name,
+                    "website": co_website,
+                    "industry": co_industry,
+                    "location": co_location,
+                    "current_platform": current_platform,
+                    "service_type": service_type
+                })
 
-            html_body = f"<html><body><p>{body.replace(chr(10), '<br>')}</p></body></html>"
+            html_body = f"<html><body><p>{_safe_str(body).replace(chr(10), '<br>')}</p></body></html>"
 
             log_progress(f"Autopilot: Dispatching outreach email to '{email}'...")
             # Send the email!
@@ -354,7 +452,7 @@ async def run_automation_batch(db, batch_target: int = 5) -> Dict[str, Any]:
     Runs automated cycles in a loop until batch_target emails are sent.
     Shared by scheduler and manual trigger.
     """
-    global automation_progress, is_batch_running
+    global automation_progress, is_batch_running, cancel_requested
     
     if is_batch_running:
         logger.warning("Autopilot: A batch is already actively running. Skipping duplicate trigger.")
@@ -362,10 +460,15 @@ async def run_automation_batch(db, batch_target: int = 5) -> Dict[str, Any]:
         
     try:
         is_batch_running = True
+        cancel_requested = False
         automation_progress.clear()
         
         repo = AutomationRepository(db)
         config = await repo.get_settings()
+        if not config.get("enabled", False):
+            log_progress("Autopilot: Batch skipped because autopilot is disabled.")
+            return {"status": "skipped", "reason": "disabled"}
+
         daily_limit = config.get("daily_email_limit", 20)
         
         batch_sent = 0
@@ -375,6 +478,15 @@ async def run_automation_batch(db, batch_target: int = 5) -> Dict[str, Any]:
         log_progress(f"Autopilot: Starting automated batch run (Target: {batch_target} emails)...")
         
         while batch_sent < batch_target:
+            if cancel_requested:
+                log_progress("Autopilot: Batch run aborted by user request.")
+                break
+
+            latest_settings = await repo.get_settings()
+            if not latest_settings.get("enabled", False):
+                log_progress("Autopilot: Batch run stopped because autopilot was turned OFF.")
+                break
+                
             current_sent_today = await repo.count_records_today()
             if current_sent_today >= daily_limit:
                 log_progress("Autopilot: Daily email limit reached mid-batch. Halting batch run.")
@@ -393,10 +505,20 @@ async def run_automation_batch(db, batch_target: int = 5) -> Dict[str, Any]:
                 
             if cycle_sent == 0:
                 log_progress("Autopilot: Cycle sent 0 emails. Sleeping 60 seconds to let server cool down, then switching to next niche...")
-                await asyncio.sleep(60) # Wait 60s to release browser memory and avoid spamming APIs
+                for _ in range(60):
+                    if cancel_requested:
+                        break
+                    await asyncio.sleep(1)
                 
         log_progress(f"Autopilot: Batch run completed. Total sent in this run: {batch_sent} over {attempts} attempts.")
         return {"status": "completed", "sent_count": batch_sent, "attempts": attempts}
+    except Exception as err:
+        trace = traceback.format_exc()
+        logger.error(f"Autopilot: Batch run crashed with error: {err}\n{trace}")
+        log_progress(f"Autopilot: Batch run crashed: {err}")
+        from app.routes.notifications import push_notification
+        push_notification("error", f"Autopilot batch crashed: {err}", source="autopilot")
+        return {"status": "failed", "error": str(err)}
     finally:
         is_batch_running = False
 

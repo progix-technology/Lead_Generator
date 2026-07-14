@@ -218,7 +218,7 @@ async def run_playwright_scraper(company_name: str, location: str, phone_number:
         await asyncio.sleep(5)
         wait_sec += 5
 
-    clean_name = company_name.replace("'", "").replace('"', '')
+    clean_name = (company_name or "").replace("'", "").replace('"', '')
     search_query = urllib.parse.quote_plus(f'{clean_name} {location}')
     yahoo_url = f"https://search.yahoo.com/search?p={search_query}"
     

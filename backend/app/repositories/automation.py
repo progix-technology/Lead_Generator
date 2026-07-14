@@ -33,7 +33,29 @@ class AutomationRepository:
             "Catering Services", "Auto Repair",
             "Cosmetic Dentists", "Orthodontists", "IVF Clinics", "Medical Spas", "Corporate Lawyers", "Accountants",
             "Solar Panel Installers", "Swimming Pool Builders", "Custom Home Builders", "Commercial HVAC", "Commercial Roofing", "Interior Designers",
-            "Logistics Companies", "Consulting Agencies", "Corporate Event Planners"
+            "Logistics Companies", "Consulting Agencies", "Corporate Event Planners",
+            "General Contractors", "Kitchen Remodeling", "Bathroom Remodeling", "Flooring Contractors",
+            "Garage Door Repair", "Pest Control", "Water Damage Restoration", "Mold Remediation",
+            "Landscaping Services", "Lawn Care", "Pressure Washing", "Gutter Cleaning",
+            "Pool Cleaning Services", "Handyman Services", "Deck Builders", "Masonry Contractors",
+            "Glass Repair Services", "Emergency Plumbers", "Emergency Electricians", "Septic Services",
+            "Mobile Car Detailing", "Tire Shops", "Auto Body Shops", "Windshield Repair",
+            "Transmission Repair", "Brake Repair", "Oil Change Services", "Car Wash",
+            "Personal Injury Lawyers", "Immigration Lawyers", "Family Lawyers", "Bankruptcy Lawyers",
+            "Tax Consultants", "Bookkeeping Services", "Payroll Services", "Insurance Agencies",
+            "Real Estate Agents", "Mortgage Brokers", "Property Management", "Home Inspectors",
+            "Dermatology Clinics", "Pediatric Clinics", "Dental Implants Clinics", "Urgent Care Clinics",
+            "Psychology Clinics", "Speech Therapy Centers", "Occupational Therapy Centers", "Home Healthcare Services",
+            "Med Spa Clinics", "Hair Salons", "Nail Salons", "Barber Shops",
+            "Beauty Clinics", "Eyelash Studios", "Tattoo Studios", "Massage Therapy",
+            "Gyms", "Personal Trainers", "Pilates Studios", "Crossfit Gyms",
+            "Martial Arts Schools", "Music Schools", "Tutoring Centers", "Test Prep Centers",
+            "Preschools", "Private Schools", "Senior Care Services", "Assisted Living Facilities",
+            "Restaurants", "Coffee Shops", "Bakeries", "Food Trucks",
+            "Cafes", "Cloud Kitchens", "Pet Grooming", "Pet Boarding",
+            "IT Support Services", "Managed IT Services", "Cybersecurity Consultants", "Digital Marketing Agencies",
+            "SEO Agencies", "Web Design Agencies", "Software Development Companies", "Recruitment Agencies",
+            "Staffing Agencies", "Printing Services", "Signage Companies", "Security Camera Installation"
         ]
         default_locations = [
             "Sunnyvale, CA", "Santa Clara, CA", "Mountain View, CA", "Palo Alto, CA",
@@ -41,7 +63,22 @@ class AutomationRepository:
             "San Ramon, CA", "Walnut Creek, CA", "Concord, CA", "Bakersfield, CA",
             "Modesto, CA", "Stockton, CA", "Sacramento, CA", "Elk Grove, CA",
             "Rancho Cordova, CA", "Davis, CA", "Woodland, CA", "Napa, CA",
-            "San Rafael, CA", "Novato, CA", "Petaluma, CA", "Santa Rosa, CA", "Berkeley, CA"
+            "San Rafael, CA", "Novato, CA", "Petaluma, CA", "Santa Rosa, CA", "Berkeley, CA",
+            "Los Angeles, CA", "San Diego, CA", "San Jose, CA", "San Francisco, CA",
+            "Long Beach, CA", "Anaheim, CA", "Irvine, CA", "Riverside, CA",
+            "Phoenix, AZ", "Mesa, AZ", "Scottsdale, AZ", "Tempe, AZ",
+            "Las Vegas, NV", "Henderson, NV", "Reno, NV", "Portland, OR",
+            "Seattle, WA", "Tacoma, WA", "Spokane, WA", "Denver, CO",
+            "Colorado Springs, CO", "Dallas, TX", "Houston, TX", "Austin, TX",
+            "San Antonio, TX", "Fort Worth, TX", "El Paso, TX", "Chicago, IL",
+            "Naperville, IL", "Miami, FL", "Orlando, FL", "Tampa, FL",
+            "Jacksonville, FL", "Fort Lauderdale, FL", "Atlanta, GA", "Charlotte, NC",
+            "Raleigh, NC", "Nashville, TN", "New York, NY", "Brooklyn, NY",
+            "Queens, NY", "Buffalo, NY", "Jersey City, NJ", "Newark, NJ",
+            "Philadelphia, PA", "Pittsburgh, PA", "Boston, MA", "Worcester, MA",
+            "Washington, DC", "Baltimore, MD", "Detroit, MI", "Minneapolis, MN",
+            "St. Paul, MN", "Columbus, OH", "Cleveland, OH", "Cincinnati, OH",
+            "Indianapolis, IN", "Kansas City, MO", "St. Louis, MO", "New Orleans, LA"
         ]
         
         default_redesign_subject = "Quick suggestion for {{company}} about your website"
@@ -79,7 +116,29 @@ class AutomationRepository:
                     "Dentists", "Catering Services", "Auto Repair",
                     "Cosmetic Dentists", "Orthodontists", "IVF Clinics", "Medical Spas", "Corporate Lawyers", "Accountants",
                     "Solar Panel Installers", "Swimming Pool Builders", "Custom Home Builders", "Commercial HVAC", "Commercial Roofing", "Interior Designers",
-                    "Logistics Companies", "Consulting Agencies", "Corporate Event Planners"
+                    "Logistics Companies", "Consulting Agencies", "Corporate Event Planners",
+                    "General Contractors", "Kitchen Remodeling", "Bathroom Remodeling", "Flooring Contractors",
+                    "Garage Door Repair", "Pest Control", "Water Damage Restoration", "Mold Remediation",
+                    "Landscaping Services", "Lawn Care", "Pressure Washing", "Gutter Cleaning",
+                    "Pool Cleaning Services", "Handyman Services", "Deck Builders", "Masonry Contractors",
+                    "Glass Repair Services", "Emergency Plumbers", "Emergency Electricians", "Septic Services",
+                    "Mobile Car Detailing", "Tire Shops", "Auto Body Shops", "Windshield Repair",
+                    "Transmission Repair", "Brake Repair", "Oil Change Services", "Car Wash",
+                    "Personal Injury Lawyers", "Immigration Lawyers", "Family Lawyers", "Bankruptcy Lawyers",
+                    "Tax Consultants", "Bookkeeping Services", "Payroll Services", "Insurance Agencies",
+                    "Real Estate Agents", "Mortgage Brokers", "Property Management", "Home Inspectors",
+                    "Dermatology Clinics", "Pediatric Clinics", "Dental Implants Clinics", "Urgent Care Clinics",
+                    "Psychology Clinics", "Speech Therapy Centers", "Occupational Therapy Centers", "Home Healthcare Services",
+                    "Med Spa Clinics", "Hair Salons", "Nail Salons", "Barber Shops",
+                    "Beauty Clinics", "Eyelash Studios", "Tattoo Studios", "Massage Therapy",
+                    "Gyms", "Personal Trainers", "Pilates Studios", "Crossfit Gyms",
+                    "Martial Arts Schools", "Music Schools", "Tutoring Centers", "Test Prep Centers",
+                    "Preschools", "Private Schools", "Senior Care Services", "Assisted Living Facilities",
+                    "Restaurants", "Coffee Shops", "Bakeries", "Food Trucks",
+                    "Cafes", "Cloud Kitchens", "Pet Grooming", "Pet Boarding",
+                    "IT Support Services", "Managed IT Services", "Cybersecurity Consultants", "Digital Marketing Agencies",
+                    "SEO Agencies", "Web Design Agencies", "Software Development Companies", "Recruitment Agencies",
+                    "Staffing Agencies", "Printing Services", "Signage Companies", "Security Camera Installation"
                 ]
                 merged_needed = False
                 for a in new_additions:
@@ -94,6 +153,34 @@ class AutomationRepository:
                 doc["locations"] = default_locations
                 update_data["locations"] = default_locations
                 needs_update = True
+            else:
+                current_locations = doc.get("locations", [])
+                new_location_additions = [
+                    "Los Angeles, CA", "San Diego, CA", "San Jose, CA", "San Francisco, CA",
+                    "Long Beach, CA", "Anaheim, CA", "Irvine, CA", "Riverside, CA",
+                    "Phoenix, AZ", "Mesa, AZ", "Scottsdale, AZ", "Tempe, AZ",
+                    "Las Vegas, NV", "Henderson, NV", "Reno, NV", "Portland, OR",
+                    "Seattle, WA", "Tacoma, WA", "Spokane, WA", "Denver, CO",
+                    "Colorado Springs, CO", "Dallas, TX", "Houston, TX", "Austin, TX",
+                    "San Antonio, TX", "Fort Worth, TX", "El Paso, TX", "Chicago, IL",
+                    "Naperville, IL", "Miami, FL", "Orlando, FL", "Tampa, FL",
+                    "Jacksonville, FL", "Fort Lauderdale, FL", "Atlanta, GA", "Charlotte, NC",
+                    "Raleigh, NC", "Nashville, TN", "New York, NY", "Brooklyn, NY",
+                    "Queens, NY", "Buffalo, NY", "Jersey City, NJ", "Newark, NJ",
+                    "Philadelphia, PA", "Pittsburgh, PA", "Boston, MA", "Worcester, MA",
+                    "Washington, DC", "Baltimore, MD", "Detroit, MI", "Minneapolis, MN",
+                    "St. Paul, MN", "Columbus, OH", "Cleveland, OH", "Cincinnati, OH",
+                    "Indianapolis, IN", "Kansas City, MO", "St. Louis, MO", "New Orleans, LA"
+                ]
+                location_merged = False
+                for loc in new_location_additions:
+                    if loc not in current_locations:
+                        current_locations.append(loc)
+                        location_merged = True
+                if location_merged:
+                    doc["locations"] = current_locations
+                    update_data["locations"] = current_locations
+                    needs_update = True
             if "facebook_only" not in doc:
                 doc["facebook_only"] = False
                 update_data["facebook_only"] = False

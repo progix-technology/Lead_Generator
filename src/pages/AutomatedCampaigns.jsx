@@ -5,6 +5,8 @@ import Button from '../components/Button';
 import automationService from '../services/automationService';
 import { FiCpu, FiPlay, FiMail, FiCheckCircle, FiAlertCircle, FiSettings } from 'react-icons/fi';
 
+const AUTOPILOT_RUN_LOCK_KEY = 'autopilot_manual_run_locked';
+
 export default function AutomatedCampaigns() {
   const [enabled, setEnabled] = useState(false);
   const [subjectTemplate, setSubjectTemplate] = useState('');
@@ -26,6 +28,7 @@ export default function AutomatedCampaigns() {
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [triggeringCycle, setTriggeringCycle] = useState(false);
+  const [manualRunLocked, setManualRunLocked] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -110,6 +113,11 @@ export default function AutomatedCampaigns() {
       // Fetch settings
       const settings = await automationService.getSettings();
       setEnabled(settings.enabled);
+      const runLockFlag = localStorage.getItem(AUTOPILOT_RUN_LOCK_KEY) === '1';
+      setManualRunLocked(settings.enabled ? runLockFlag : false);
+      if (!settings.enabled) {
+        localStorage.removeItem(AUTOPILOT_RUN_LOCK_KEY);
+      }
       setSubjectTemplate(settings.subject_template || '');
       setBodyTemplate(settings.body_template || '');
       setRedesignSubjectTemplate(settings.redesign_subject_template || '');
@@ -135,6 +143,8 @@ export default function AutomatedCampaigns() {
           if (isActive) {
             setShowConsole(true);
             setTriggeringCycle(true);
+            setManualRunLocked(true);
+            localStorage.setItem(AUTOPILOT_RUN_LOCK_KEY, '1');
           }
         }
       } catch (err) {
@@ -216,6 +226,11 @@ export default function AutomatedCampaigns() {
         daily_email_limit: parseInt(dailyEmailLimit) || 20,
         batch_email_limit: parseInt(batchEmailLimit) || 5
       });
+
+      // Any successful toggle re-arms the manual trigger state to prevent stale lock bugs.
+      setManualRunLocked(false);
+      localStorage.removeItem(AUTOPILOT_RUN_LOCK_KEY);
+
       setSuccessMsg(checked ? 'Autopilot is now active! 🤖⚡' : 'Autopilot has been disabled.');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
@@ -226,6 +241,15 @@ export default function AutomatedCampaigns() {
   };
 
   const handleRunCycleNow = async () => {
+    if (!enabled || manualRunLocked) {
+      if (!enabled) {
+        setError('Please enable Autopilot first, then run a cycle.');
+      } else {
+        setError('Manual run is locked. Toggle OFF and then ON to run again.');
+      }
+      return;
+    }
+
     setTriggeringCycle(true);
     setError('');
     setSuccessMsg('');
@@ -235,6 +259,8 @@ export default function AutomatedCampaigns() {
     try {
       const res = await automationService.triggerAutopilot();
       if (res.status === 'success') {
+        setManualRunLocked(true);
+        localStorage.setItem(AUTOPILOT_RUN_LOCK_KEY, '1');
         setSuccessMsg('Autopilot batch running in the background... See live logs below!');
       }
     } catch (err) {
@@ -358,9 +384,17 @@ export default function AutomatedCampaigns() {
             variant="primary" 
             className="flex items-center gap-1.5 shadow-sm text-xs py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 cursor-pointer"
             onClick={handleRunCycleNow}
-            disabled={triggeringCycle}
+            disabled={triggeringCycle || !enabled || manualRunLocked}
           >
-            <FiPlay /> {triggeringCycle ? 'Running Cycle...' : 'Run Autopilot Now ⚡'}
+            <FiPlay /> {
+              !enabled
+                ? 'Enable Autopilot First'
+                : triggeringCycle
+                  ? 'Running Cycle...'
+                  : manualRunLocked
+                    ? 'Toggle OFF-ON to Run Again'
+                    : 'Run Autopilot Now ⚡'
+            }
           </Button>
         </div>
       </div>
@@ -807,9 +841,15 @@ export default function AutomatedCampaigns() {
                         <span className="text-green-600 font-semibold text-xs font-mono truncate block" title={record.email}>
                           {record.email}
                         </span>
-                        <span className="text-[8px] bg-green-50 text-green-700 px-1 py-0.2 rounded border border-green-200 font-extrabold flex-shrink-0">
-                          ✓ Verified
-                        </span>
+                        {record.status === 'Unverified' ? (
+                          <span className="text-[8px] bg-amber-50 text-amber-700 px-1 py-0.2 rounded border border-amber-200 font-extrabold flex-shrink-0">
+                            Unverified
+                          </span>
+                        ) : (
+                          <span className="text-[8px] bg-green-50 text-green-700 px-1 py-0.2 rounded border border-green-200 font-extrabold flex-shrink-0">
+                            ✓ Verified
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-gray-600 align-middle truncate text-xs" title={`${record.category} in ${record.location}`}>
@@ -827,10 +867,12 @@ export default function AutomatedCampaigns() {
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
                           record.status === 'Sent'
                             ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100/50'
-                            : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100/50'
+                            : record.status === 'Unverified'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
+                              : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100/50'
                         }`}
                       >
-                        {record.status === 'Sent' ? 'View Mail ✓' : 'Failed ⚠'}
+                        {record.status === 'Sent' ? 'View Mail ✓' : record.status === 'Unverified' ? 'Unverified ⚠' : 'Failed ⚠'}
                       </button>
                     </td>
                   </tr>

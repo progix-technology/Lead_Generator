@@ -11,7 +11,7 @@ def query_whois_raw(domain: str) -> str:
     Requires zero external python packages or WHOIS binaries.
     """
     # Clean domain string
-    domain = domain.replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0].strip()
+    domain = (domain or "").replace("https://", "").replace("http://", "").replace("www.", "").split("/")[0].strip()
     if not domain or "." not in domain:
         return ""
         

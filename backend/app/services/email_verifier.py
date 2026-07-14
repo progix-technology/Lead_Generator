@@ -49,11 +49,8 @@ def verify_email_existence_sync(email: str, from_email: str = "progixtechnology@
         return False, "Mail server closed connection abruptly"
     except Exception as e:
         logger.warning(f"SMTP Connection/Handshake error for {email}: {e}")
-        # SAFETY FALLBACK:
-        # Many local ISPs, firewalls, and cloud providers block outgoing port 25 connections completely.
-        # If we cannot establish a connection, we must return True (and assume valid) so we don't
-        # delete valid scrapings due to our own network/firewall blocking!
-        return True, "Server connection blocked. Assuming valid as fallback."
+        # Do not auto-approve on connection failures; keep sender reputation safe.
+        return False, "Unverified: SMTP connection blocked or server unreachable"
 
 async def verify_email_existence(email: str) -> Tuple[bool, str]:
     """

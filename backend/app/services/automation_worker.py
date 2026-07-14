@@ -10,7 +10,7 @@ from app.repositories.automation import AutomationRepository
 from app.repositories.company import CompanyRepository
 from app.services.company import CompanyService
 from app.services.places import search_companies_google_places
-from app.services.email_scraper import find_email_for_company
+from app.services.email_scraper import find_email_for_company, find_email_from_company_website
 from app.services.email_verifier import verify_email_existence
 from app.services.email_sender import send_smtp_email
 from app.services.llm_service import clean_first_name_with_ai
@@ -99,7 +99,8 @@ CATEGORIES = [
     "Cafes", "Cloud Kitchens", "Pet Grooming", "Pet Boarding",
     "IT Support Services", "Managed IT Services", "Cybersecurity Consultants", "Digital Marketing Agencies",
     "SEO Agencies", "Web Design Agencies", "Software Development Companies", "Recruitment Agencies",
-    "Staffing Agencies", "Printing Services", "Signage Companies", "Security Camera Installation"
+    "Staffing Agencies", "Printing Services", "Signage Companies", "Security Camera Installation",
+    "Beauty Products", "Soap", "Creams", "Toothpaste", "Grocery Stores"
 ]
 LOCATIONS = [
     "Sunnyvale, CA", "Santa Clara, CA", "Mountain View, CA", "Palo Alto, CA",
@@ -122,7 +123,9 @@ LOCATIONS = [
     "Philadelphia, PA", "Pittsburgh, PA", "Boston, MA", "Worcester, MA",
     "Washington, DC", "Baltimore, MD", "Detroit, MI", "Minneapolis, MN",
     "St. Paul, MN", "Columbus, OH", "Cleveland, OH", "Cincinnati, OH",
-    "Indianapolis, IN", "Kansas City, MO", "St. Louis, MO", "New Orleans, LA"
+    "Indianapolis, IN", "Kansas City, MO", "St. Louis, MO", "New Orleans, LA",
+    "Colombo, Sri Lanka", "Kandy, Sri Lanka", "Galle, Sri Lanka", "Negombo, Sri Lanka",
+    "Kathmandu, Nepal", "Pokhara, Nepal", "Lalitpur, Nepal", "Bhaktapur, Nepal", "Biratnagar, Nepal"
 ]
 
 async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]:
@@ -269,10 +272,27 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
 
         log_progress(f"Autopilot: Target match! Processing '{name}'...")
 
+        if is_redesign and website_url:
+            try:
+                log_progress(f"Autopilot: Redesign lead detected. Checking website contact pages for '{name}'...")
+                website_email, website_email_page = await find_email_from_company_website(website_url)
+                if website_email:
+                    log_progress(
+                        f"Autopilot: Found owner email '{website_email}' on website page '{website_email_page}' for '{name}'."
+                    )
+                    email = website_email
+                    discovered_web = None
+                    email_source = "Website Contact Page"
+                else:
+                    log_progress(f"Autopilot: No owner email found on website contact pages for '{name}'. Falling back to social search.")
+            except Exception as website_scan_err:
+                log_progress(f"Autopilot: Website contact-page scan failed for '{name}': {website_scan_err}. Falling back to social search.")
+
         # Deep crawl emails
         try:
             log_progress(f"Autopilot: Crawling social profiles and searching contact info for '{name}'...")
-            email, discovered_web, email_source = await find_email_for_company(name, location, company.get("phone_number", ""))
+            if not (is_redesign and website_url and email):
+                email, discovered_web, email_source = await find_email_for_company(name, location, company.get("phone_number", ""))
             
             if discovered_web:
                 log_progress(f"Autopilot: Lead '{name}' has a discovered website: '{discovered_web}' (skipped)")
@@ -549,10 +569,12 @@ async def run_automation_scheduler():
                     logger.info(f"Autopilot: Daily email limit reached ({sent_today}/{daily_limit}). Skipping.")
             else:
                 logger.info("Autopilot: Autopilot is disabled. Sleeping...")
+            
+            # Check every 30 minutes
+            await asyncio.sleep(1800)
         except Exception as e:
             logger.error(f"Autopilot: Scheduler loop error: {e}")
             from app.routes.notifications import push_notification
             push_notification("error", f"Autopilot scheduler crashed: {e}", source="autopilot")
-            
-        # Check every 30 minutes
-        await asyncio.sleep(1800)
+            # Sleep 60 seconds on connection/network issues, then retry
+            await asyncio.sleep(60)

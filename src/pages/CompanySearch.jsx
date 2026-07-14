@@ -83,7 +83,7 @@ export default function CompanySearch() {
 
   const handleSearch = async () => {
     if (!query) {
-      setError('Please enter a business category (e.g., Software, Plumbers)');
+      setError('Please enter a business category (e.g., Beauty Products, Grocery Stores)');
       return;
     }
     setError('');

@@ -138,10 +138,11 @@ async def run_google_maps_playwright_scraper(query: str, location: str) -> List[
                 except Exception:
                     break
             
-            # Google Maps listings links have class "hfpxzc"
-            listings = await page.locator("a.hfpxzc").all()
-            
+            from app.services import automation_worker
             for item in listings[:20]:  # Scrape top 20 leads
+                if getattr(automation_worker, "cancel_requested", False):
+                    logger.info("Playwright Google Maps Scraper: Cancel requested. Aborting...")
+                    break
                 try:
                     name = await item.get_attribute("aria-label") or "Unknown"
                     
@@ -261,6 +262,10 @@ async def scrape_google_maps_fallback(query: str, location: str) -> List[Dict[st
     Completely free keyless fallback search using DuckDuckGo Local Map search API.
     If it fails, falls back to direct Playwright scraping in an independent thread.
     """
+    from app.services import automation_worker
+    if getattr(automation_worker, "cancel_requested", False):
+        return []
+        
     logger.info(f"Free Fallback: Querying DuckDuckGo Local Maps via urllib for '{query}' in '{location}'")
     try:
         companies = await asyncio.to_thread(query_ddg_local_sync, query, location)
@@ -269,6 +274,9 @@ async def scrape_google_maps_fallback(query: str, location: str) -> List[Dict[st
             return companies
     except Exception as e:
         logger.warning(f"Free Fallback: DuckDuckGo Local API search failed: {e}. Trying Playwright...")
+
+    if getattr(automation_worker, "cancel_requested", False):
+        return []
 
     # Final fallback if DDG Local fails
     return await asyncio.to_thread(scrape_google_maps_in_thread, query, location)
@@ -301,11 +309,16 @@ async def search_companies_google_places(
     search_tasks = []
     
     async def perform_single_search(n_query: str, loc: str):
+        from app.services import automation_worker
+        if getattr(automation_worker, "cancel_requested", False):
+            return []
         # Generate clean search phrases optimized for local map search
         search_phrases = generate_map_search_queries(n_query, loc)
         # Search the top 2 generated phrases
         leads_for_phrase = []
         for phrase in search_phrases[:2]:
+            if getattr(automation_worker, "cancel_requested", False):
+                break
             try:
                 results = await scrape_google_maps_fallback(phrase, "")
                 if results:

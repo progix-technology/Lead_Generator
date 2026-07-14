@@ -703,7 +703,7 @@ export default function AutomatedCampaigns() {
             <form onSubmit={handleAddCategory} className="flex gap-2">
               <input
                 type="text"
-                placeholder="e.g. Bakeries, Plumbers"
+                placeholder="e.g. Beauty Products, Plumbers, Grocery Stores"
                 className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-850 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={newCategory}
                 onChange={(e) => setNewCategory(e.target.value)}
@@ -889,7 +889,7 @@ export default function AutomatedCampaigns() {
           <div className="bg-white rounded-2xl max-w-2xl w-full border border-gray-100 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-gray-150 flex justify-between items-center bg-gray-50/50">
               <h3 className="font-bold text-gray-800 text-sm flex items-center gap-1.5">
-                <FiMail className="text-blue-500 text-base" /> Sent Outreach Template
+                <FiMail className="text-blue-500 text-base" /> {selectedRecord.status === 'Unverified' ? 'Skipped Outreach (Unverified)' : 'Sent Outreach Template'}
               </h3>
               <button 
                 onClick={() => setShowPreviewModal(false)}

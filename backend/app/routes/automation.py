@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, List
 from app.database.connection import get_database
 from app.repositories.automation import AutomationRepository
 from app.auth.deps import get_current_user
-from app.services.automation_worker import run_automation_cycle, run_automation_batch
+from app.services.automation_worker import run_automation_cycle
 
 router = APIRouter()
 
@@ -72,18 +72,27 @@ async def get_records(
         "data": records
     }
 
+@router.get("/queue-status", response_model=Dict[str, Any])
+async def get_queue_status(
+    repo: AutomationRepository = Depends(get_automation_repo),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Any:
+    """Retrieve the real-time queue counts for the live dashboard."""
+    pending_count = await repo.count_pending_records()
+    sent_today = await repo.count_records_today() # Which now counts 'Sent' status
+    total_sent = await repo.count_records() # Which counts all statuses, but we can just use the pending count
+    
+    return {
+        "pending_count": pending_count,
+        "sent_today": sent_today
+    }
+
 @router.post("/trigger", response_model=Dict[str, Any])
 async def trigger_cycle(
     background_tasks: BackgroundTasks,
     db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
-    from app.services.automation_worker import is_batch_running
-    if is_batch_running:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Autopilot is already actively running a campaign batch. Please wait for the current run to finish."
-        )
     try:
         repo = AutomationRepository(db)
         config = await repo.get_settings()
@@ -95,8 +104,8 @@ async def trigger_cycle(
         batch_target = config.get("batch_email_limit", 5)
         
         # Dispatch task to background to prevent HTTP gateway timeouts (e.g. 504) during long runs
-        background_tasks.add_task(run_automation_batch, db, batch_target)
-        return {"status": "success", "message": "Autopilot batch run triggered in the background."}
+        background_tasks.add_task(run_automation_cycle, db)
+        return {"status": "success", "message": "Autopilot scraper run triggered in the background."}
     except HTTPException:
         raise
     except Exception as e:
@@ -121,3 +130,5 @@ async def test_ddg(query: str = "Drywall", location: str = "Canton, OH"):
         return {"status": "success", "results_count": len(results), "results": results[:5]}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+# Trigger reload

@@ -100,11 +100,9 @@ CATEGORIES = [
     "IT Support Services", "Managed IT Services", "Cybersecurity Consultants", "Digital Marketing Agencies",
     "SEO Agencies", "Web Design Agencies", "Software Development Companies", "Recruitment Agencies",
     "Staffing Agencies", "Printing Services", "Signage Companies", "Security Camera Installation",
-    "Beauty Products", "Soap", "Creams", "Toothpaste", "Grocery Stores"
+    "Beauty Products", "Cosmetics Stores", "Skincare Brands", "Soap and Lotion Brands", "Grocery Stores", "Supermarkets"
 ]
 LOCATIONS = [
-    "Sunnyvale, CA", "Santa Clara, CA", "Mountain View, CA", "Palo Alto, CA",
-    "San Mateo, CA", "Redwood City, CA", "Fremont, CA", "Pleasanton, CA",
     "San Ramon, CA", "Walnut Creek, CA", "Concord, CA", "Bakersfield, CA",
     "Modesto, CA", "Stockton, CA", "Sacramento, CA", "Elk Grove, CA",
     "Rancho Cordova, CA", "Davis, CA", "Woodland, CA", "Napa, CA",
@@ -215,28 +213,17 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
     scanned_count = 0
     sent_count = 0
 
-    # 5. Process results
-    for company in results:
-        if cancel_requested:
-            log_progress("Autopilot: Cycle aborted by user request.")
-            break
-
-        # Re-check toggle during long-running loops so OFF takes effect mid-batch.
-        latest_settings = await repo.get_settings()
-        if not latest_settings.get("enabled", False):
-            log_progress("Autopilot: Cycle halted because autopilot was turned OFF.")
-            break
-            
-        if sent_count >= limit_to_send:
-            log_progress("Autopilot: Daily campaign outreach target of 10 reached. Halting cycle.")
-            break
-
-        scanned_count += 1
+    # 5. Process results concurrently
+    log_progress(f"Autopilot: Processing {len(results)} businesses concurrently...")
+    
+    async def process_company(company: Dict[str, Any]) -> int:
+        global cancel_requested
+        if cancel_requested: return 0
+        
         name = _safe_str(company.get("name"), "Unknown Business")
         address = company.get("address", "")
         website_url = company.get("website_url")
 
-        # ONLY target leads without a website, or with a bad/slow website
         is_redesign = False
         seo_score = 0
         ui_score = 0
@@ -244,7 +231,6 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         suggestions = []
         
         if website_url and not is_directory_url(website_url):
-            log_progress(f"Autopilot: Lead '{name}' has a website. Running live audit speed & SEO checks...")
             from app.services.audit import perform_live_website_audit
             try:
                 audit_results = await perform_live_website_audit(website_url)
@@ -256,120 +242,85 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 avg_score = (seo_score + ui_score + performance_score) / 3
                 if avg_score >= 70:
                     log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100) (skipped)")
-                    continue
+                    return 0
                 else:
-                    log_progress(f"Autopilot: Target match (Outdated Website)! Lead '{name}' website has poor score ({avg_score:.1f}/100). Proceeding...")
                     is_redesign = True
             except Exception as audit_err:
                 log_progress(f"Autopilot: Failed to audit site '{website_url}': {audit_err} (skipped)")
-                continue
+                return 0
 
         # Prevent duplicate outreach: check if already exists in DB
         existing = await co_repo.collection.find_one({"name": name})
         if existing:
             log_progress(f"Autopilot: Lead '{name}' is already saved in database (skipped)")
-            continue
+            return 0
 
-        log_progress(f"Autopilot: Target match! Processing '{name}'...")
+        email = None
+        discovered_web = None
+        email_source = None
 
         if is_redesign and website_url:
             try:
-                log_progress(f"Autopilot: Redesign lead detected. Checking website contact pages for '{name}'...")
                 website_email, website_email_page = await find_email_from_company_website(website_url)
                 if website_email:
-                    log_progress(
-                        f"Autopilot: Found owner email '{website_email}' on website page '{website_email_page}' for '{name}'."
-                    )
                     email = website_email
-                    discovered_web = None
                     email_source = "Website Contact Page"
-                else:
-                    log_progress(f"Autopilot: No owner email found on website contact pages for '{name}'. Falling back to social search.")
             except Exception as website_scan_err:
-                log_progress(f"Autopilot: Website contact-page scan failed for '{name}': {website_scan_err}. Falling back to social search.")
+                pass
 
-        # Deep crawl emails
+        # Deep crawl emails if not found on website
         try:
-            log_progress(f"Autopilot: Crawling social profiles and searching contact info for '{name}'...")
             if not (is_redesign and website_url and email):
                 email, discovered_web, email_source = await find_email_for_company(name, location, company.get("phone_number", ""))
             
             if discovered_web:
                 log_progress(f"Autopilot: Lead '{name}' has a discovered website: '{discovered_web}' (skipped)")
-                continue
+                return 0
 
             facebook_only = current_settings.get("facebook_only", False)
             if not email:
                 log_progress(f"Autopilot: No contact emails discovered for '{name}'.")
-                continue
+                return 0
                 
-            allowed_sources = ["Facebook"] if facebook_only else ["Facebook", "Instagram", "LinkedIn"]
+            allowed_sources = ["Facebook"] if facebook_only else ["Facebook", "Instagram", "LinkedIn", "Website Contact Page", "Direct Search", "Reverse Phone Search"]
             if email_source not in allowed_sources:
                 log_progress(f"Autopilot: Email '{email}' found for '{name}' via '{email_source}' (skipped - source must be in {allowed_sources})")
-                continue
-
-            log_progress(f"Autopilot: Verified email '{email}' found via {email_source}! Performing SMTP mailbox validation...")
+                return 0
 
             # SMTP Verification Check
             is_valid, verification_reason = await verify_email_existence(email)
             if not is_valid:
-                log_progress(
-                    f"Autopilot: Email '{email}' is unverified. Reason: {verification_reason} (skipped)."
-                )
+                log_progress(f"Autopilot: Email '{email}' is unverified. Reason: {verification_reason} (skipped).")
                 await repo.create_record({
-                    "company_name": name,
-                    "email": email,
-                    "category": category,
-                    "location": location,
-                    "subject": None,
-                    "body": None,
-                    "status": "Unverified",
-                    "error_message": verification_reason
+                    "company_name": name, "email": email, "category": category, "location": location,
+                    "subject": None, "body": None, "status": "Unverified", "error_message": verification_reason
                 })
-                continue
-
-            log_progress(f"Autopilot: Email '{email}' validated successfully. Running AI greeting name extraction...")
+                return 0
 
             # Resolve Smart Greeting Name via AI
             greeting_name = await clean_first_name_with_ai(email, name, custom_api_key=current_settings.get("openrouter_api_key"))
             if not greeting_name:
                 greeting_name = name.split()[0] if name else "Team"
-            
-            log_progress(f"Autopilot: AI extracted greeting name: '{greeting_name}'")
 
             if is_redesign:
-                # Custom high-converting Redesign Pitch from settings
                 subject_tmpl = current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
                 body_tmpl = current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
                 website_for_template = website_url or "their website"
-                
                 sug_bullets = "\n".join([f"• {s}" for s in suggestions]) if suggestions else "• Outdated responsive layout and performance bottlenecks."
 
                 subject = _apply_template(subject_tmpl, {
-                    "company": name,
-                    "first_name": greeting_name,
-                    "website": website_for_template,
-                    "industry": category,
-                    "location": location or "your area"
+                    "company": name, "first_name": greeting_name, "website": website_for_template,
+                    "industry": category, "location": location or "your area"
                 })
 
                 body = _apply_template(body_tmpl, {
-                    "company": name,
-                    "first_name": greeting_name,
-                    "website": website_for_template,
-                    "industry": category,
-                    "location": location or "your area",
-                    "performance_score": performance_score,
-                    "ui_score": ui_score,
-                    "seo_score": seo_score,
-                    "suggestions": sug_bullets
+                    "company": name, "first_name": greeting_name, "website": website_for_template,
+                    "industry": category, "location": location or "your area",
+                    "performance_score": performance_score, "ui_score": ui_score, "seo_score": seo_score, "suggestions": sug_bullets
                 })
             else:
-                # Parse template placeholders
                 subject_tmpl = current_settings.get("subject_template") or ""
                 body_tmpl = current_settings.get("body_template") or ""
-
-                # Personalize placeholders
                 co_website = "your business"
                 co_industry = category
                 co_location = location or "your area"
@@ -377,178 +328,139 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 service_type = "custom website design"
 
                 subject = _apply_template(subject_tmpl, {
-                    "company": name,
-                    "first_name": greeting_name,
-                    "website": co_website,
-                    "industry": co_industry,
-                    "location": co_location,
-                    "current_platform": current_platform,
-                    "service_type": service_type
+                    "company": name, "first_name": greeting_name, "website": co_website, "industry": co_industry,
+                    "location": co_location, "current_platform": current_platform, "service_type": service_type
                 })
 
                 body = _apply_template(body_tmpl, {
-                    "company": name,
-                    "first_name": greeting_name,
-                    "website": co_website,
-                    "industry": co_industry,
-                    "location": co_location,
-                    "current_platform": current_platform,
-                    "service_type": service_type
+                    "company": name, "first_name": greeting_name, "website": co_website, "industry": co_industry,
+                    "location": co_location, "current_platform": current_platform, "service_type": service_type
                 })
 
             html_body = f"<html><body><p>{_safe_str(body).replace(chr(10), '<br>')}</p></body></html>"
 
-            log_progress(f"Autopilot: Dispatching outreach email to '{email}'...")
-            # Send the email!
-            success = await send_smtp_email(email, subject, html_body, smtp_config=current_settings)
-
-            # Save lead to companies collection (to prevent double emails in future)
             new_co = await co_repo.create({
-                "name": name,
-                "industry": category,
-                "location": location or address,
-                "website": website_url,
-                "phone": company.get("phone_number"),
-                "email": email,
-                "email_source": email_source,
+                "name": name, "industry": category, "location": location or address,
+                "website": website_url, "phone": company.get("phone_number"),
+                "email": email, "email_source": email_source,
                 "status": "Audited" if is_redesign else "Emailed"
             })
 
-            # Save audit report if we audited their website
             if is_redesign:
                 from app.repositories.audit import WebsiteAuditRepository
                 audit_repo = WebsiteAuditRepository(db)
                 await audit_repo.create({
-                    "company_id": new_co["id"],
-                    "website_url": website_url,
-                    "seo_score": seo_score,
-                    "ui_score": ui_score,
-                    "performance_score": performance_score,
-                    "suggestions": suggestions,
-                    "created_at": datetime.utcnow(),
-                    "updated_at": datetime.utcnow()
+                    "company_id": new_co["id"], "website_url": website_url,
+                    "seo_score": seo_score, "ui_score": ui_score, "performance_score": performance_score,
+                    "suggestions": suggestions, "created_at": datetime.utcnow(), "updated_at": datetime.utcnow()
                 })
 
-            if success:
-                # Log success to automation_records
-                await repo.create_record({
-                    "company_name": name,
-                    "email": email,
-                    "category": category,
-                    "location": location,
-                    "subject": subject,
-                    "body": body,
-                    "status": "Sent",
-                    "error_message": None
-                })
-                sent_count += 1
-                log_progress(f"Autopilot: ✓ Outreach email successfully delivered to '{name}' at '{email}'!")
-            else:
-                # Log failure
-                await repo.create_record({
-                    "company_name": name,
-                    "email": email,
-                    "category": category,
-                    "location": location,
-                    "subject": subject,
-                    "body": body,
-                    "status": "Failed",
-                    "error_message": "SMTP send failed"
-                })
-                log_progress(f"Autopilot: ✕ Failed to send SMTP email to '{name}' at '{email}'")
-                from app.routes.notifications import push_notification
-                push_notification("error", f"SMTP send failed for '{name}' ({email})", source="email")
+            await repo.create_record({
+                "company_name": name, "email": email, "category": category, "location": location,
+                "subject": subject, "body": body, "status": "Pending_Email", "error_message": None
+            })
+            log_progress(f"Autopilot: ✓ Lead '{name}' queued successfully! (Pending Mailer Dispatch)")
+            return 1
 
         except Exception as err:
             log_progress(f"Autopilot: Error processing lead '{name}': {err}")
             from app.routes.notifications import push_notification
             push_notification("error", f"Lead processing error for '{name}': {err}", source="autopilot")
+            return 0
+
+    import sys
+    # Execute all companies concurrently
+    tasks = [process_company(co) for co in results]
+    completed_counts = await asyncio.gather(*tasks)
+    
+    sent_count = sum(completed_counts)
+    scanned_count = len(results)
 
     log_progress(f"Autopilot: Cycle complete. Scanned: {scanned_count} leads, Sent: {sent_count} emails.")
     return {"status": "completed", "sent_count": sent_count, "scanned_count": scanned_count}
 
-async def run_automation_batch(db, batch_target: int = 5) -> Dict[str, Any]:
+async def run_mailer_cycle(db) -> Dict[str, Any]:
     """
-    Runs automated cycles in a loop until batch_target emails are sent.
-    Shared by scheduler and manual trigger.
+    Grabs one pending email from the database and sends it safely.
     """
-    global automation_progress, is_batch_running, cancel_requested
+    import random
+    repo = AutomationRepository(db)
+    pending = await repo.get_pending_emails(limit=1)
+    if not pending:
+        return {"status": "skipped", "reason": "no_pending"}
+
+    record = pending[0]
+    email = record["email"]
+    subject = record["subject"]
+    body = record["body"]
+    name = record["company_name"]
     
-    if is_batch_running:
-        logger.warning("Autopilot: A batch is already actively running. Skipping duplicate trigger.")
-        return {"status": "skipped", "reason": "already_running"}
-        
-    try:
-        is_batch_running = True
-        cancel_requested = False
-        automation_progress.clear()
-        
-        repo = AutomationRepository(db)
-        config = await repo.get_settings()
-        if not config.get("enabled", False):
-            log_progress("Autopilot: Batch skipped because autopilot is disabled.")
-            return {"status": "skipped", "reason": "disabled"}
+    current_settings = await repo.get_settings()
+    html_body = f"<html><body><p>{_safe_str(body).replace(chr(10), '<br>')}</p></body></html>"
 
-        daily_limit = config.get("daily_email_limit", 20)
-        
-        batch_sent = 0
-        attempts = 0
-        batch_targets = []
-        
-        log_progress(f"Autopilot: Starting automated batch run (Target: {batch_target} emails)...")
-        
-        while batch_sent < batch_target:
-            if cancel_requested:
-                log_progress("Autopilot: Batch run aborted by user request.")
-                break
+    log_progress(f"Autopilot Mailer: Dispatching queued email to '{email}'...")
+    success = await send_smtp_email(email, subject, html_body, smtp_config=current_settings)
 
-            latest_settings = await repo.get_settings()
-            if not latest_settings.get("enabled", False):
-                log_progress("Autopilot: Batch run stopped because autopilot was turned OFF.")
-                break
-                
-            current_sent_today = await repo.count_records_today()
-            if current_sent_today >= daily_limit:
-                log_progress("Autopilot: Daily email limit reached mid-batch. Halting batch run.")
-                break
-                
-            log_progress(f"Autopilot: Batch run attempt {attempts + 1} (Sent in this batch: {batch_sent}/{batch_target})")
-            cycle_result = await run_automation_cycle(db, batch_targets=batch_targets)
-            
-            cycle_sent = cycle_result.get("sent_count", 0)
-            batch_sent += cycle_sent
-            attempts += 1
-            
-            if batch_sent >= batch_target:
-                log_progress(f"Autopilot: Batch target of {batch_target} emails reached. Ending batch run.")
-                break
-                
-            if cycle_sent == 0:
-                log_progress("Autopilot: Cycle sent 0 emails. Sleeping 60 seconds to let server cool down, then switching to next niche...")
-                for _ in range(60):
-                    if cancel_requested:
-                        break
-                    await asyncio.sleep(1)
-                
-        log_progress(f"Autopilot: Batch run completed. Total sent in this run: {batch_sent} over {attempts} attempts.")
-        return {"status": "completed", "sent_count": batch_sent, "attempts": attempts}
-    except Exception as err:
-        trace = traceback.format_exc()
-        logger.error(f"Autopilot: Batch run crashed with error: {err}\n{trace}")
-        log_progress(f"Autopilot: Batch run crashed: {err}")
+    if success:
+        await repo.update_record_status(record["id"], "Sent")
+        log_progress(f"Autopilot Mailer: ✓ Outreach email successfully delivered to '{name}' at '{email}'!")
+        return {"status": "sent"}
+    else:
+        await repo.update_record_status(record["id"], "Failed", "SMTP send failed")
+        log_progress(f"Autopilot Mailer: ✕ Failed to send SMTP email to '{name}' at '{email}'")
         from app.routes.notifications import push_notification
-        push_notification("error", f"Autopilot batch crashed: {err}", source="autopilot")
-        return {"status": "failed", "error": str(err)}
-    finally:
-        is_batch_running = False
+        push_notification("error", f"SMTP send failed for '{name}' ({email})", source="email")
+        return {"status": "failed"}
 
-async def run_automation_scheduler():
+async def run_mailer_scheduler():
     """
-    Autopilot worker loop. Runs natively in the FastAPI event loop.
-    Checks status every 30 minutes.
+    Runs continuously, picking up pending emails and sending them with a 3-4 min jitter delay.
     """
-    logger.info("Autopilot: Background scheduler loop started.")
-    await asyncio.sleep(15) # Let application startup fully
+    import random
+    logger.info("Autopilot Mailer: Background loop started.")
+    await asyncio.sleep(20)
+    
+    from app.database.connection import get_database
+    db = get_database()
+    
+    while True:
+        try:
+            if cancel_requested:
+                await asyncio.sleep(5)
+                continue
+
+            repo = AutomationRepository(db)
+            config = await repo.get_settings()
+            
+            if config.get("enabled", False):
+                # Count only sent emails for the daily limit
+                sent_today = await repo.count_records_today()
+                daily_limit = config.get("daily_email_limit", 20)
+                
+                if sent_today < daily_limit:
+                    result = await run_mailer_cycle(db)
+                    if result.get("status") in ["sent", "failed"]:
+                        delay = random.randint(180, 240)
+                        log_progress(f"Autopilot Mailer: Sleeping for {delay} seconds (3-4 mins) before next send to protect SMTP reputation.")
+                        await asyncio.sleep(delay)
+                    else:
+                        # No pending emails, check again in 30 seconds
+                        await asyncio.sleep(30)
+                else:
+                    log_progress(f"Autopilot Mailer: Daily limit of {daily_limit} reached. Pausing until tomorrow.")
+                    await asyncio.sleep(1800)
+            else:
+                await asyncio.sleep(30)
+        except Exception as e:
+            logger.error(f"Autopilot Mailer error: {e}")
+            await asyncio.sleep(60)
+
+async def run_scraper_scheduler():
+    """
+    Runs the scraper periodically to keep the queue filled.
+    """
+    logger.info("Autopilot Scraper: Background loop started.")
+    await asyncio.sleep(15)
     
     from app.database.connection import get_database
     db = get_database()
@@ -558,23 +470,17 @@ async def run_automation_scheduler():
             repo = AutomationRepository(db)
             config = await repo.get_settings()
             if config.get("enabled", False):
-                sent_today = await repo.count_records_today()
-                daily_limit = config.get("daily_email_limit", 20)
-                
-                if sent_today < daily_limit:
-                    batch_target = config.get("batch_email_limit", 5)
-                    await run_automation_batch(db, batch_target=batch_target)
-                    log_progress("Autopilot: Scheduler sleeping for 30 minutes. Next run will start soon...")
+                pending_count = await repo.count_pending_records()
+                # Keep queue stocked with at least 15-20 leads
+                if pending_count < 20:
+                    log_progress(f"Autopilot Scraper: Queue has {pending_count} leads. Starting search for more...")
+                    await run_automation_cycle(db)
                 else:
-                    logger.info(f"Autopilot: Daily email limit reached ({sent_today}/{daily_limit}). Skipping.")
+                    # Plenty of leads in queue, rest.
+                    pass
+                await asyncio.sleep(300) # Check queue size every 5 mins
             else:
-                logger.info("Autopilot: Autopilot is disabled. Sleeping...")
-            
-            # Check every 30 minutes
-            await asyncio.sleep(1800)
+                await asyncio.sleep(60)
         except Exception as e:
-            logger.error(f"Autopilot: Scheduler loop error: {e}")
-            from app.routes.notifications import push_notification
-            push_notification("error", f"Autopilot scheduler crashed: {e}", source="autopilot")
-            # Sleep 60 seconds on connection/network issues, then retry
+            logger.error(f"Autopilot Scraper error: {e}")
             await asyncio.sleep(60)

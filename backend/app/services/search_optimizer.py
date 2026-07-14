@@ -123,7 +123,7 @@ def expand_keyword(category: str) -> List[str]:
 
 def get_city_level_locations(location: str) -> List[str]:
     """If the location is a state or country, expands it to city-level granularity."""
-    loc_lower = location.lower().strip().replace(" ", "")
+    loc_lower = (location or "").lower().strip().replace(" ", "")
     
     # Check if we have city-level granularity pre-configured
     for state, cities in STATE_CITIES.items():
@@ -185,8 +185,8 @@ def deduplicate_leads(leads: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     for lead in leads:
         name = lead.get("name", "")
         norm_name = normalize_business_name(name)
-        url = lead.get("website_url", "").lower().strip()
-        phone = lead.get("phone_number", "").replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+        url = (lead.get("website_url") or "").lower().strip()
+        phone = (lead.get("phone_number") or "").replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
         
         # Skip if name normalized matches
         if norm_name in seen_names:

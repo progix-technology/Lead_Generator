@@ -244,11 +244,41 @@ class AutomationRepository:
         return await self.records_col.count_documents({})
 
     async def count_records_today(self) -> int:
+        from datetime import datetime
         start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        return await self.records_col.count_documents({"sent_at": {"$gte": start_of_day}})
+        auto_sent = await self.records_col.count_documents({
+            "sent_at": {"$gte": start_of_day},
+            "status": "Sent"
+        })
+        comp_sent = await self.db["companies"].count_documents({
+            "updated_at": {"$gte": start_of_day},
+            "status": "Emailed"
+        })
+        return auto_sent + comp_sent
 
     async def create_record(self, data: Dict[str, Any]) -> Dict[str, Any]:
-        data["sent_at"] = datetime.utcnow()
+        data["created_at"] = datetime.utcnow()
+        if data.get("status") == "Sent":
+            data["sent_at"] = datetime.utcnow()
         result = await self.records_col.insert_one(data)
         created = await self.records_col.find_one({"_id": result.inserted_id})
         return self._format_id(created)
+
+    async def get_pending_emails(self, limit: int = 10) -> List[Dict[str, Any]]:
+        cursor = self.records_col.find({"status": "Pending_Email"}).sort("created_at", 1).limit(limit)
+        return [self._format_id(doc) async for doc in cursor]
+
+    async def count_pending_records(self) -> int:
+        return await self.records_col.count_documents({"status": "Pending_Email"})
+        
+    async def update_record_status(self, record_id: str, status: str, error_message: str = None) -> None:
+        update_data = {"status": status, "updated_at": datetime.utcnow()}
+        if error_message is not None:
+            update_data["error_message"] = error_message
+        if status == "Sent":
+            update_data["sent_at"] = datetime.utcnow()
+            
+        await self.records_col.update_one(
+            {"_id": ObjectId(record_id)},
+            {"$set": update_data}
+        )

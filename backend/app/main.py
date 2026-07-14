@@ -77,9 +77,10 @@ async def lifespan(app: FastAPI):
     import threading
     threading.Thread(target=install_playwright, daemon=True).start()
     
-    # Start the background autopilot scheduler
-    from app.services.automation_worker import run_automation_scheduler
-    asyncio.create_task(run_automation_scheduler())
+    # Start the decoupled background autopilot schedulers
+    from app.services.automation_worker import run_scraper_scheduler, run_mailer_scheduler
+    asyncio.create_task(run_scraper_scheduler())
+    asyncio.create_task(run_mailer_scheduler())
     yield
     # Shutdown: Close Database connection
     await close_mongo_connection()

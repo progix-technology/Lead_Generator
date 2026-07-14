@@ -20,11 +20,12 @@ export default function AutomatedCampaigns() {
   const [batchEmailLimit, setBatchEmailLimit] = useState(5);
   const [newCategory, setNewCategory] = useState('');
   const [newLocation, setNewLocation] = useState('');
-  
+
   const [records, setRecords] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [todayCount, setTodayCount] = useState(0);
-  
+  const [queueMetrics, setQueueMetrics] = useState({ pending_count: 0, sent_today: 0 });
+
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [triggeringCycle, setTriggeringCycle] = useState(false);
@@ -35,11 +36,11 @@ export default function AutomatedCampaigns() {
   // Live Console Log States
   const [consoleLogs, setConsoleLogs] = useState([]);
   const [showConsole, setShowConsole] = useState(false);
-  
+
   // Modal Preview States
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
-  
+
   // Ref to body template textarea for injecting tags
   const bodyRef = useRef(null);
   const redesignBodyRef = useRef(null);
@@ -55,7 +56,7 @@ export default function AutomatedCampaigns() {
   // Polling loop triggered by triggeringCycle or showConsole to keep UI synced with server background thread
   useEffect(() => {
     let pollingActive = triggeringCycle || showConsole;
-    
+
     const pollLogs = async () => {
       let isFirstFetch = true;
       let tick = 0;
@@ -64,7 +65,7 @@ export default function AutomatedCampaigns() {
           const res = await automationService.getProgress();
           if (res && res.progress) {
             setConsoleLogs(res.progress);
-            
+
             // Periodically refresh records list and stats (every 4.5s / 3 ticks) to update counts and emails live
             if (tick % 3 === 0 || res.is_running === false) {
               const history = await automationService.getRecords(0, 100);
@@ -72,7 +73,7 @@ export default function AutomatedCampaigns() {
               setTotalCount(history.total_count || 0);
               setTodayCount(history.today_count || 0);
             }
-            
+
             // Stop polling if the server says autopilot is not running and we've fetched once
             if (res.is_running === false) {
               setTriggeringCycle(false);
@@ -105,11 +106,25 @@ export default function AutomatedCampaigns() {
     fetchData();
   }, []);
 
+  // Poll queue status continuously for the Live Dashboard
+  useEffect(() => {
+    let interval;
+    const fetchQueueStatus = async () => {
+      try {
+        const stats = await automationService.getQueueStatus();
+        if (stats) setQueueMetrics(stats);
+      } catch (err) { }
+    };
+    fetchQueueStatus();
+    interval = setInterval(fetchQueueStatus, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchData = async () => {
     try {
       setLoading(true);
       setError('');
-      
+
       // Fetch settings
       const settings = await automationService.getSettings();
       setEnabled(settings.enabled);
@@ -127,7 +142,7 @@ export default function AutomatedCampaigns() {
       setFacebookOnly(!!settings.facebook_only);
       setDailyEmailLimit(settings.daily_email_limit || 20);
       setBatchEmailLimit(settings.batch_email_limit || 5);
-      
+
       // Fetch history records
       const history = await automationService.getRecords(0, 100);
       setRecords(history.data || []);
@@ -350,26 +365,26 @@ export default function AutomatedCampaigns() {
           </h1>
           <p className="text-gray-500 text-sm mt-1">Autonomous Google Maps lead generation & Facebook-scraped outreach.</p>
         </div>
-        
+
         <div className="flex items-center gap-3">
           {/* Autopilot Master Switch */}
           <div className="flex items-center bg-white border border-gray-200 px-4 py-2 rounded-xl shadow-sm">
             <span className="text-sm font-semibold text-gray-700 mr-3 flex items-center gap-1.5">
-              <FiCpu className={`${enabled ? 'text-blue-500 animate-spin' : 'text-gray-400'}`} style={{ animationDuration: '3s' }} /> 
+              <FiCpu className={`${enabled ? 'text-blue-500 animate-spin' : 'text-gray-400'}`} style={{ animationDuration: '3s' }} />
               Autopilot Status:
             </span>
             <label className="relative inline-flex items-center cursor-pointer">
-              <input 
-                type="checkbox" 
-                className="sr-only peer" 
-                checked={enabled} 
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={enabled}
                 onChange={(e) => handleToggleAutopilot(e.target.checked)}
               />
               <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
           </div>
 
-          <Button 
+          <Button
             variant="secondary"
             className="flex items-center gap-1.5 shadow-sm text-xs py-2.5 px-4 border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold cursor-pointer"
             onClick={() => setShowConsole(prev => !prev)}
@@ -380,8 +395,8 @@ export default function AutomatedCampaigns() {
             </span>
           </Button>
 
-          <Button 
-            variant="primary" 
+          <Button
+            variant="primary"
             className="flex items-center gap-1.5 shadow-sm text-xs py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 cursor-pointer"
             onClick={handleRunCycleNow}
             disabled={triggeringCycle || !enabled || manualRunLocked}
@@ -411,6 +426,20 @@ export default function AutomatedCampaigns() {
         </div>
       )}
 
+      {/* Live Queue Counter Dashboard */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+        <Card className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 flex flex-col justify-center items-center py-6 shadow-sm">
+          <div className="text-sm font-bold text-indigo-800 uppercase tracking-wider mb-2">Total Leads Scraped (Pending Queue)</div>
+          <div className="text-5xl font-black text-indigo-600 drop-shadow-sm">{queueMetrics.pending_count}</div>
+          <div className="text-xs text-indigo-500 font-medium mt-2">Waiting for safe mailer dispatch</div>
+        </Card>
+        <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 flex flex-col justify-center items-center py-6 shadow-sm">
+          <div className="text-sm font-bold text-emerald-800 uppercase tracking-wider mb-2">Emails Successfully Sent (Today)</div>
+          <div className="text-5xl font-black text-emerald-600 drop-shadow-sm">{queueMetrics.sent_today} <span className="text-2xl text-emerald-400">/ {dailyEmailLimit}</span></div>
+          <div className="text-xs text-emerald-500 font-medium mt-2">Sent smoothly without hitting spam limits</div>
+        </Card>
+      </div>
+
       {showConsole && (
         <div className="fixed bottom-6 right-6 w-[450px] max-w-[90vw] z-50 transition-all duration-300">
           <div className="bg-slate-950/95 border border-slate-800 text-green-400 p-5 rounded-2xl shadow-2xl font-mono text-xs space-y-3 relative overflow-hidden backdrop-blur-md">
@@ -418,14 +447,14 @@ export default function AutomatedCampaigns() {
               <span className="flex items-center gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse"></span> Live Autopilot Terminal
               </span>
-              <button 
+              <button
                 onClick={() => setShowConsole(false)}
                 className="text-slate-400 hover:text-slate-200 cursor-pointer font-sans normal-case text-xs"
               >
                 ✕ Close
               </button>
             </div>
-            
+
             <div ref={consoleContainerRef} className="h-[250px] overflow-y-auto space-y-1.5 scroll-smooth pr-1">
               {consoleLogs.length === 0 ? (
                 <div className="text-slate-500 italic">Awaiting worker log dispatch...</div>
@@ -433,8 +462,8 @@ export default function AutomatedCampaigns() {
                 consoleLogs.map((log, index) => {
                   const isSleeping = log.toLowerCase().includes("sleeping") || log.toLowerCase().includes("sleep");
                   return (
-                    <div 
-                      key={index} 
+                    <div
+                      key={index}
                       className={`leading-relaxed whitespace-pre-wrap select-text ${isSleeping ? 'text-blue-400 font-semibold' : 'text-green-400'}`}
                     >
                       {log}
@@ -467,7 +496,7 @@ export default function AutomatedCampaigns() {
             <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">Limit: {dailyEmailLimit}/day</span>
           </div>
           <div className="w-full bg-gray-100 h-2 rounded-full mt-3 overflow-hidden">
-            <div className="bg-blue-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((todayCount/dailyEmailLimit)*100, 100)}%` }}></div>
+            <div className="bg-blue-600 h-full rounded-full transition-all duration-500" style={{ width: `${Math.min((todayCount / dailyEmailLimit) * 100, 100)}%` }}></div>
           </div>
         </Card>
 
@@ -494,16 +523,16 @@ export default function AutomatedCampaigns() {
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="md:col-span-3">
-                <Input 
-                  label="Autopilot Subject Line" 
-                  placeholder="Helping {{company}} strengthen its online presence" 
+                <Input
+                  label="Autopilot Subject Line"
+                  placeholder="Helping {{company}} strengthen its online presence"
                   value={subjectTemplate}
                   onChange={(e) => setSubjectTemplate(e.target.value)}
                 />
               </div>
               <div>
-                <Input 
-                  label="Daily Limit" 
+                <Input
+                  label="Daily Limit"
                   type="number"
                   min="1"
                   max="500"
@@ -513,8 +542,8 @@ export default function AutomatedCampaigns() {
                 />
               </div>
               <div>
-                <Input 
-                  label="Batch Target" 
+                <Input
+                  label="Batch Target"
                   type="number"
                   min="1"
                   max="50"
@@ -528,7 +557,7 @@ export default function AutomatedCampaigns() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="md:col-span-3">
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Body Template</label>
-                <textarea 
+                <textarea
                   ref={bodyRef}
                   rows="14"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
@@ -537,7 +566,7 @@ export default function AutomatedCampaigns() {
                   onChange={(e) => setBodyTemplate(e.target.value)}
                 />
               </div>
-              
+
               {/* Template Variables Helper */}
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Available Tags:</label>
@@ -569,8 +598,8 @@ export default function AutomatedCampaigns() {
                 </span>
               )}
               {!successMsg && !error && <span />}
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 onClick={handleSaveSettings}
                 disabled={savingSettings}
                 className="text-xs px-6 py-2"
@@ -591,9 +620,9 @@ export default function AutomatedCampaigns() {
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="md:col-span-5">
-                <Input 
-                  label="Redesign Subject Line" 
-                  placeholder="Quick suggestion for {{company}} about your website" 
+                <Input
+                  label="Redesign Subject Line"
+                  placeholder="Quick suggestion for {{company}} about your website"
                   value={redesignSubjectTemplate}
                   onChange={(e) => setRedesignSubjectTemplate(e.target.value)}
                 />
@@ -603,7 +632,7 @@ export default function AutomatedCampaigns() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="md:col-span-3">
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Body Template</label>
-                <textarea 
+                <textarea
                   ref={redesignBodyRef}
                   rows="14"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
@@ -612,7 +641,7 @@ export default function AutomatedCampaigns() {
                   onChange={(e) => setRedesignBodyTemplate(e.target.value)}
                 />
               </div>
-              
+
               {/* Template Variables Helper */}
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Available Tags:</label>
@@ -645,8 +674,8 @@ export default function AutomatedCampaigns() {
                 </span>
               )}
               {!successMsg && !error && <span />}
-              <Button 
-                variant="primary" 
+              <Button
+                variant="primary"
                 onClick={handleSaveSettings}
                 disabled={savingSettings}
                 className="text-xs px-6 py-2"
@@ -710,19 +739,19 @@ export default function AutomatedCampaigns() {
               />
               <Button type="submit" variant="secondary" className="text-xs px-3 py-1.5 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer">Add</Button>
             </form>
-            
+
             <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 border border-gray-200 rounded-xl min-h-[90px] align-content-start">
               {categories.length === 0 ? (
                 <span className="text-[11px] text-gray-400 italic m-auto text-center">No categories. All categories will rotate.</span>
               ) : (
                 categories.map((cat) => (
-                  <span 
-                    key={cat} 
+                  <span
+                    key={cat}
                     className="inline-flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 rounded-full px-2.5 py-0.5"
                   >
                     {cat}
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => handleRemoveCategory(cat)}
                       className="hover:text-blue-900 font-bold ml-0.5 text-[9px] text-blue-400 cursor-pointer"
                     >
@@ -753,13 +782,13 @@ export default function AutomatedCampaigns() {
                 <span className="text-[11px] text-gray-400 italic m-auto text-center">No locations. All locations will rotate.</span>
               ) : (
                 locations.map((loc) => (
-                  <span 
-                    key={loc} 
+                  <span
+                    key={loc}
                     className="inline-flex items-center gap-1 text-[10px] font-semibold bg-green-50 text-green-800 border border-green-200 rounded-full px-2.5 py-0.5"
                   >
                     {loc}
-                    <button 
-                      type="button" 
+                    <button
+                      type="button"
                       onClick={() => handleRemoveLocation(loc)}
                       className="hover:text-green-900 font-bold ml-0.5 text-[9px] text-green-400 cursor-pointer"
                     >
@@ -776,16 +805,16 @@ export default function AutomatedCampaigns() {
             <div className="flex flex-col pr-2">
               <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">Facebook Leads Only</span>
               <span className="text-[9px] text-gray-400 mt-0.5 leading-normal">
-                {facebookOnly 
-                  ? "Strictly sends pitches to emails found on Facebook." 
+                {facebookOnly
+                  ? "Strictly sends pitches to emails found on Facebook."
                   : "Sends pitches to emails from Facebook, Instagram, or LinkedIn (blocks directory spam like Yelp/support emails)."}
               </span>
             </div>
             <label className="relative inline-flex items-center cursor-pointer shrink-0">
-              <input 
-                type="checkbox" 
-                className="sr-only peer" 
-                checked={facebookOnly} 
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={facebookOnly}
                 onChange={(e) => setFacebookOnly(e.target.checked)}
               />
               <div className="w-8 h-4.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600"></div>
@@ -793,8 +822,8 @@ export default function AutomatedCampaigns() {
           </div>
 
           <div className="pt-2 border-t border-gray-150">
-            <Button 
-              variant="primary" 
+            <Button
+              variant="primary"
               onClick={handleSaveSettings}
               disabled={savingSettings}
               className="w-full text-xs py-2.5 font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white cursor-pointer"
@@ -841,13 +870,21 @@ export default function AutomatedCampaigns() {
                         <span className="text-green-600 font-semibold text-xs font-mono truncate block" title={record.email}>
                           {record.email}
                         </span>
-                        {record.status === 'Unverified' ? (
+                        {record.status === 'Sent' ? (
+                          <span className="text-[8px] bg-green-50 text-green-700 px-1 py-0.2 rounded border border-green-200 font-extrabold flex-shrink-0">
+                            ✓ Verified
+                          </span>
+                        ) : record.status === 'Pending_Email' ? (
+                          <span className="text-[8px] bg-indigo-50 text-indigo-700 px-1 py-0.2 rounded border border-indigo-200 font-extrabold flex-shrink-0">
+                            ⧖ Queued
+                          </span>
+                        ) : record.status === 'Unverified' ? (
                           <span className="text-[8px] bg-amber-50 text-amber-700 px-1 py-0.2 rounded border border-amber-200 font-extrabold flex-shrink-0">
                             Unverified
                           </span>
                         ) : (
-                          <span className="text-[8px] bg-green-50 text-green-700 px-1 py-0.2 rounded border border-green-200 font-extrabold flex-shrink-0">
-                            ✓ Verified
+                          <span className="text-[8px] bg-red-50 text-red-700 px-1 py-0.2 rounded border border-red-200 font-extrabold flex-shrink-0">
+                            ✕ Failed
                           </span>
                         )}
                       </div>
@@ -864,15 +901,16 @@ export default function AutomatedCampaigns() {
                           setSelectedRecord(record);
                           setShowPreviewModal(true);
                         }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                          record.status === 'Sent'
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${record.status === 'Sent'
                             ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100/50'
-                            : record.status === 'Unverified'
-                              ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
-                              : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100/50'
-                        }`}
+                            : record.status === 'Pending_Email'
+                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100/50'
+                              : record.status === 'Unverified'
+                                ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
+                                : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100/50'
+                          }`}
                       >
-                        {record.status === 'Sent' ? 'View Mail ✓' : record.status === 'Unverified' ? 'Unverified ⚠' : 'Failed ⚠'}
+                        {record.status === 'Sent' ? 'View Mail ✓' : record.status === 'Pending_Email' ? 'Queued ⧖' : record.status === 'Unverified' ? 'Unverified ⚠' : 'Failed ⚠'}
                       </button>
                     </td>
                   </tr>
@@ -891,20 +929,20 @@ export default function AutomatedCampaigns() {
               <h3 className="font-bold text-gray-800 text-sm flex items-center gap-1.5">
                 <FiMail className="text-blue-500 text-base" /> {selectedRecord.status === 'Unverified' ? 'Skipped Outreach (Unverified)' : 'Sent Outreach Template'}
               </h3>
-              <button 
+              <button
                 onClick={() => setShowPreviewModal(false)}
                 className="text-gray-400 hover:text-gray-600 text-lg cursor-pointer"
               >
                 ✕
               </button>
             </div>
-            
+
             <div className="p-6 space-y-4 text-sm text-gray-800">
               <div>
                 <span className="font-semibold text-gray-400 text-xs block mb-0.5">Recipients:</span>
                 <span className="font-mono text-gray-700">{selectedRecord.company_name} ({selectedRecord.email})</span>
               </div>
-              
+
               <div>
                 <span className="font-semibold text-gray-400 text-xs block mb-0.5">Subject Line:</span>
                 <span className="font-bold text-gray-900 text-base">{selectedRecord.subject}</span>
@@ -925,8 +963,8 @@ export default function AutomatedCampaigns() {
             </div>
 
             <div className="px-6 py-4 border-t border-gray-150 flex justify-end bg-gray-50/50">
-              <Button 
-                variant="secondary" 
+              <Button
+                variant="secondary"
                 onClick={() => setShowPreviewModal(false)}
                 className="text-xs px-5 py-2 font-semibold"
               >

@@ -132,13 +132,31 @@ def is_valid_email(email: str) -> bool:
     return True
 
 async def scrape_url_for_emails(page, url: str) -> List[str]:
-    """Visits a URL using Playwright and extracts all unique valid emails."""
+    """Visits a URL using httpx (fast) or Playwright (fallback) and extracts all unique valid emails."""
     logger.info(f"Agent: Scanning {url}...")
     try:
-        # Ignore javascript protocols or empty inputs
         if not url.startswith(('http://', 'https://')):
             return []
             
+        # FAST PATH: Try httpx first (milliseconds)
+        try:
+            import httpx
+            async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
+                response = await client.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                if response.status_code == 200:
+                    matches = EMAIL_REGEX.findall(response.text)
+                    valid_emails = [m.lower() for m in matches if is_valid_email(m)]
+                    if valid_emails:
+                        logger.info(f"Agent: Found emails via HTTPX on {url} (Fast Path)")
+                        return list(set(valid_emails))
+        except Exception as http_err:
+            pass # Ignore httpx errors, fallback to playwright
+            
+        if not page:
+            return []
+            
+        # SLOW PATH: Fallback to Playwright for JS-rendered sites
+        logger.info(f"Agent: HTTPX found no emails. Falling back to Playwright for {url}...")
         await page.goto(url, wait_until="domcontentloaded", timeout=12000)
         await asyncio.sleep(2) # Give dynamic JavaScript time to render
         
@@ -298,394 +316,157 @@ async def check_website_on_social_page(page) -> Optional[str]:
         logger.warning(f"Error checking website on social page: {e}")
     return None
 
-async def run_playwright_scraper(company_name: str, location: str, phone_number: str = "") -> Tuple[Optional[str], Optional[str], Optional[str]]:
+async def ddg_lite_search(query: str) -> List[str]:
+    """Lightning fast search using DuckDuckGo Lite via HTTPX."""
+    try:
+        import httpx
+        from bs4 import BeautifulSoup
+        import urllib.parse
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Referer": "https://lite.duckduckgo.com/"
+        }
+        url = "https://lite.duckduckgo.com/lite/"
+        
+        async with httpx.AsyncClient(verify=False) as client:
+            r = await client.post(url, data={"q": query}, headers=headers, timeout=5.0)
+            if r.status_code != 200:
+                return []
+                
+            soup = BeautifulSoup(r.text, "html.parser")
+            links = []
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                if "uddg=" in href:
+                    try:
+                        parts = href.split("uddg=")
+                        if len(parts) > 1:
+                            target = parts[1].split("&")[0]
+                            href = urllib.parse.unquote(target)
+                            links.append(href)
+                    except Exception:
+                        pass
+            results = []
+            
+            if extract_snippets:
+                for td in soup.find_all("td", class_="snippet"):
+                    results.append(td.get_text(separator=' ', strip=True))
+            else:
+                for a in soup.find_all("a", href=True):
+                    href = a["href"]
+                    if "uddg=" in href:
+                        try:
+                            parts = href.split("uddg=")
+                            if len(parts) > 1:
+                                target = parts[1].split("&")[0]
+                                href = urllib.parse.unquote(target)
+                                results.append(href)
+                        except Exception:
+                            pass
+            return results
+    except Exception as e:
+        logger.warning(f"DDG Lite search failed for query '{query}': {e}")
+        return []
+
+async def find_email_for_company(company_name: str, location: str, phone_number: str = "") -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
-    Internal Playwright Scraper logic that runs inside the dedicated loop thread.
+    Lightning-fast HTTPX search via DuckDuckGo Lite to find social links and extract emails.
     Returns: Tuple[Optional[str], Optional[str], Optional[str]] -> (email, website_url, email_source)
     """
-    global PLAYWRIGHT_INSTALLING
-    wait_sec = 0
-    while PLAYWRIGHT_INSTALLING and wait_sec < 60:
-        logger.info("Agent: Playwright browser is actively downloading. Waiting 5 seconds...")
-        await asyncio.sleep(5)
-        wait_sec += 5
-
     clean_name = (company_name or "").replace("'", "").replace('"', '')
-    search_query = urllib.parse.quote_plus(f'{clean_name} {location}')
-    yahoo_url = f"https://search.yahoo.com/search?p={search_query}"
+    search_query = f"{clean_name} {location}"
     
-    logger.info(f"Agent Thread: Starting search for '{clean_name}' on Yahoo")
+    logger.info(f"Agent: Fast searching DDG Lite for '{search_query}'")
     
     facebook_url = None
     instagram_url = None
     linkedin_url = None
-    website_url = None
 
-    search_variants = [
-        f"{clean_name} {location}",
-        f"{clean_name} {location} contact",
-        f"{clean_name} {location} email",
-        f"{clean_name} {location} about",
-        f"{clean_name} {location} website",
-    ]
-
-    # Social links discovered by crawling the company's website
-    discovered_facebook_url = None
-    discovered_instagram_url = None
-
-    async def extract_socials_from_page(page_obj) -> Tuple[Optional[str], Optional[str]]:
-        """Helper to find Facebook & Instagram links on a page."""
-        fb, ig = None, None
-        try:
-            links = await page_obj.evaluate("""() => {
-                const anchors = Array.from(document.querySelectorAll('a[href]'));
-                return anchors.map(a => a.href);
-            }""")
-            for link in links:
-                if not link.startswith(('http://', 'https://')):
-                    continue
-                if 'facebook.com' in link and '/public/' not in link and '/events/' not in link:
-                    fb = link
-                elif 'instagram.com' in link and '/p/' not in link:
-                    ig = link
-        except Exception as e:
-            logger.warning(f"Error extracting socials: {e}")
-        return fb, ig
-
-    try:
-        from app.services import automation_worker
+    links = await ddg_lite_search(search_query)
+    for link in links:
+        if not link.startswith(('http://', 'https://')): continue
+        if any(domain in link for domain in ['yahoo.com', 'microsoft.com', 'google.com']): continue
         
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            )
-            page = await context.new_page()
-            
-            # Block heavy assets to load pages faster and prevent connection timeouts
-            async def block_resources(route):
-                if route.request.resource_type in ["image", "media", "font", "stylesheet"]:
-                    await route.abort()
-                else:
-                    await route.continue_()
-            await page.route("**/*", block_resources)
-            
-            if getattr(automation_worker, "cancel_requested", False):
-                logger.info("Agent: Cancellation requested. Aborting scraper...")
-                await browser.close()
-                return None, None, None
+        if 'facebook.com' in link and not facebook_url and '/public/' not in link and '/events/' not in link:
+            facebook_url = link
+        elif 'instagram.com' in link and not instagram_url and '/p/' not in link:
+            instagram_url = link
+        elif 'linkedin.com' in link and not linkedin_url and ('/company/' in link or '/in/' in link):
+            linkedin_url = link
 
-            # 1. Search Yahoo
-            try:
-                await page.goto(yahoo_url, wait_until="domcontentloaded", timeout=15000)
-                await asyncio.sleep(2)
-                
-                if getattr(automation_worker, "cancel_requested", False):
-                    logger.info("Agent: Cancellation requested. Aborting scraper...")
-                    await browser.close()
-                    return None, None, None
+    from app.services import automation_worker
+    
+    # 2. Deep scrape direct social links first
+    if facebook_url:
+        if getattr(automation_worker, "cancel_requested", False): return None, None, None
+        clean_fb = facebook_url.split('?')[0].rstrip('/')
+        fb_pages = [clean_fb, f"{clean_fb}/about"]
+        for fb_page in fb_pages:
+            if getattr(automation_worker, "cancel_requested", False): return None, None, None
+            logger.info(f"Agent: Fast scanning Facebook page: {fb_page}")
+            emails = await scrape_url_for_emails(None, fb_page)
+            if emails:
+                logger.info(f"Agent: Scraped email '{emails[0]}' from Facebook profile.")
+                return emails[0], None, "Facebook"
 
-                links = await page.locator("a[href]").evaluate_all("elements => elements.map(e => e.href)")
-                
-                # Categorize found links
-                for raw_link in links:
-                    link = clean_redirect_urls(raw_link)
-                    if not link.startswith(('http://', 'https://')):
-                        continue
-                    if any(domain in link for domain in ['yahoo.com', 'yahoo.co', 'yimg.com', 'microsoft.com', 'google.com']):
-                        continue
-                        
-                    if 'facebook.com' in link and not facebook_url and '/public/' not in link and '/events/' not in link:
-                        facebook_url = link
-                    elif 'instagram.com' in link and not instagram_url and '/p/' not in link:
-                        instagram_url = link
-                    elif 'linkedin.com' in link and not linkedin_url and ('/company/' in link or '/in/' in link):
-                        linkedin_url = link
+    if instagram_url:
+        if getattr(automation_worker, "cancel_requested", False): return None, None, None
+        logger.info(f"Agent: Fast scanning Instagram page: {instagram_url}")
+        emails = await scrape_url_for_emails(None, instagram_url)
+        if emails:
+            logger.info(f"Agent: Scraped email '{emails[0]}' from Instagram profile.")
+            return emails[0], None, "Instagram"
 
-            except Exception as e:
-                logger.warning(f"Yahoo search query failed: {e}")
+    if linkedin_url:
+        if getattr(automation_worker, "cancel_requested", False): return None, None, None
+        clean_li = linkedin_url.split('?')[0].rstrip('/')
+        li_pages = [clean_li]
+        if '/company/' in clean_li:
+            li_pages.append(f"{clean_li}/about")
+        for li_page in li_pages:
+            if getattr(automation_worker, "cancel_requested", False): return None, None, None
+            logger.info(f"Agent: Fast scanning LinkedIn page: {li_page}")
+            emails = await scrape_url_for_emails(None, li_page)
+            if emails:
+                logger.info(f"Agent: Scraped email '{emails[0]}' from LinkedIn profile.")
+                return emails[0], None, "LinkedIn"
 
-            if getattr(automation_worker, "cancel_requested", False):
-                logger.info("Agent: Cancellation requested. Aborting scraper...")
-                await browser.close()
-                return None, None, None
+    # Direct Search Snippet Crawler Fallback
+    if getattr(automation_worker, "cancel_requested", False): return None, None, None
+    logger.info("Agent: Email not found on profiles. Executing fast snippet query...")
+    search_variants = [
+        f'"{clean_name}" "{location}" email',
+        f'"{clean_name}" {location} @gmail.com',
+        f'"{clean_name}" {location} @yahoo.com',
+    ]
+    
+    for direct_query in search_variants:
+        if getattr(automation_worker, "cancel_requested", False): return None, None, None
+        snippets = await ddg_lite_search(direct_query, extract_snippets=True)
+        for snippet in snippets:
+            matches = EMAIL_REGEX.findall(snippet)
+            emails = [m.lower() for m in matches if is_valid_email(m)]
+            if emails:
+                logger.info(f"Agent: Scraped email '{emails[0]}' directly from DDG snippet for query '{direct_query}'.")
+                return emails[0], None, "Direct Search"
 
-            # Fallback 1: Bing general search if Yahoo returned nothing
-            if not facebook_url and not instagram_url and not linkedin_url:
-                logger.info("Yahoo search returned zero results. Executing general search on Bing...")
-                ddg_links = await query_bing_for_links(page, f"{clean_name} {location}")
-                
-                for link in ddg_links:
-                    if getattr(automation_worker, "cancel_requested", False):
-                        logger.info("Agent: Cancellation requested. Aborting scraper...")
-                        await browser.close()
-                        return None, None, None
-                    if not link.startswith(('http://', 'https://')):
-                        continue
-                    if 'facebook.com' in link and not facebook_url and '/public/' not in link and '/events/' not in link:
-                        facebook_url = link
-                    elif 'instagram.com' in link and not instagram_url and '/p/' not in link:
-                        instagram_url = link
-                    elif 'linkedin.com' in link and not linkedin_url and ('/company/' in link or '/in/' in link):
-                        linkedin_url = link
-
-            # 2. Deep scrape direct social links first
-            # Facebook URL targeted query fallback
-            if not facebook_url:
-                if getattr(automation_worker, "cancel_requested", False):
-                    logger.info("Agent: Cancellation requested. Aborting scraper...")
-                    await browser.close()
-                    return None, None, None
-                try:
-                    logger.info(f"Agent: Facebook URL not found. Executing targeted Bing query...")
-                    fb_links = await query_bing_for_links(page, f"{clean_name} {location} facebook")
-                    for l in fb_links:
-                        if 'facebook.com' in l and '/public/' not in l and '/events/' not in l:
-                            facebook_url = l
-                            break
-                except Exception as e:
-                    logger.warning(f"Targeted Facebook search failed: {e}")
-
-            if facebook_url:
-                if getattr(automation_worker, "cancel_requested", False):
-                    logger.info("Agent: Cancellation requested. Aborting scraper...")
-                    await browser.close()
-                    return None, None, None
-                clean_fb = facebook_url.split('?')[0].rstrip('/')
-                fb_pages = [clean_fb, f"{clean_fb}/about"]
-                for fb_page in fb_pages:
-                    if getattr(automation_worker, "cancel_requested", False):
-                        logger.info("Agent: Cancellation requested. Aborting scraper...")
-                        await browser.close()
-                        return None, None, None
-                    try:
-                        logger.info(f"Agent: Deep scanning Facebook page: {fb_page}")
-                        await page.goto(fb_page, wait_until="domcontentloaded", timeout=12000)
-                        await asyncio.sleep(2)
-                        
-                        # Extract website from Facebook page
-                        page_web = await check_website_on_social_page(page)
-                        if page_web:
-                            if getattr(automation_worker, "cancel_requested", False):
-                                logger.info("Agent: Cancellation requested. Aborting scraper...")
-                                await browser.close()
-                                return None, None, None
-                            logger.info(f"Agent: Discovered website listed in Facebook profile: '{page_web}'")
-                            website_email, website_email_page = await find_email_from_company_website(page_web)
-                            if website_email:
-                                logger.info(
-                                    f"Agent: Found email '{website_email}' on website contact page '{website_email_page}' from Facebook-discovered site."
-                                )
-                                await browser.close()
-                                return website_email, page_web, "Website Contact Page"
-                            await browser.close()
-                            return None, page_web, None
-                            
-                        # Extract emails
-                        content = await page.content()
-                        matches = EMAIL_REGEX.findall(content)
-                        emails = [m.lower() for m in matches if is_valid_email(m)]
-                        if emails:
-                            logger.info(f"Agent: Scraped email '{emails[0]}' from Facebook profile.")
-                            await browser.close()
-                            return emails[0], None, "Facebook"
-                    except Exception as e:
-                        logger.warning(f"Error scraping Facebook page {fb_page}: {e}")
-
-            # Instagram URL targeted query fallback
-            if not instagram_url:
-                if getattr(automation_worker, "cancel_requested", False):
-                    logger.info("Agent: Cancellation requested. Aborting scraper...")
-                    await browser.close()
-                    return None, None, None
-                try:
-                    logger.info(f"Agent: Instagram URL not found. Executing targeted Bing query...")
-                    ig_links = await query_bing_for_links(page, f"{clean_name} {location} instagram")
-                    for l in ig_links:
-                        if 'instagram.com' in l and '/p/' not in l:
-                            instagram_url = l
-                            break
-                except Exception as e:
-                    logger.warning(f"Targeted Instagram search failed: {e}")
-
-            if instagram_url:
-                if getattr(automation_worker, "cancel_requested", False):
-                    logger.info("Agent: Cancellation requested. Aborting scraper...")
-                    await browser.close()
-                    return None, None, None
-                try:
-                    logger.info(f"Agent: Deep scanning Instagram page: {instagram_url}")
-                    await page.goto(instagram_url, wait_until="domcontentloaded", timeout=12000)
-                    await asyncio.sleep(2)
-                    
-                    # Extract website from Instagram page
-                    page_web = await check_website_on_social_page(page)
-                    if page_web:
-                        if getattr(automation_worker, "cancel_requested", False):
-                            logger.info("Agent: Cancellation requested. Aborting scraper...")
-                            await browser.close()
-                            return None, None, None
-                        logger.info(f"Agent: Discovered website listed in Instagram profile: '{page_web}'")
-                        website_email, website_email_page = await find_email_from_company_website(page_web)
-                        if website_email:
-                            logger.info(
-                                f"Agent: Found email '{website_email}' on website contact page '{website_email_page}' from Instagram-discovered site."
-                            )
-                            await browser.close()
-                            return website_email, page_web, "Website Contact Page"
-                        await browser.close()
-                        return None, page_web, None
-                        
-                    content = await page.content()
-                    matches = EMAIL_REGEX.findall(content)
+    # Brahmastra 3: Reverse Phone Number Mapping query
+    if phone_number:
+        if getattr(automation_worker, "cancel_requested", False): return None, None, None
+        try:
+            clean_phone = re.sub(r'[^\d+]', '', phone_number)
+            if len(clean_phone) >= 7:
+                logger.info(f"Agent: Executing Reverse Phone Mapping query for '{phone_number}'...")
+                phone_query = f'"{phone_number}" email'
+                snippets = await ddg_lite_search(phone_query, extract_snippets=True)
+                for snippet in snippets:
+                    matches = EMAIL_REGEX.findall(snippet)
                     emails = [m.lower() for m in matches if is_valid_email(m)]
                     if emails:
-                        logger.info(f"Agent: Scraped email '{emails[0]}' from Instagram profile.")
-                        await browser.close()
-                        return emails[0], None, "Instagram"
-                except Exception as e:
-                    logger.warning(f"Error scraping Instagram page {instagram_url}: {e}")
-
-            # LinkedIn URL targeted query fallback
-            if not linkedin_url:
-                if getattr(automation_worker, "cancel_requested", False):
-                    logger.info("Agent: Cancellation requested. Aborting scraper...")
-                    await browser.close()
-                    return None, None, None
-                try:
-                    logger.info(f"Agent: LinkedIn URL not found. Executing targeted Bing query...")
-                    li_links = await query_bing_for_links(page, f"{clean_name} {location} linkedin")
-                    for l in li_links:
-                        if 'linkedin.com' in l and ('/company/' in l or '/in/' in l):
-                            linkedin_url = l
-                            break
-                except Exception as e:
-                    logger.warning(f"Targeted LinkedIn search failed: {e}")
-
-            if linkedin_url:
-                if getattr(automation_worker, "cancel_requested", False):
-                    logger.info("Agent: Cancellation requested. Aborting scraper...")
-                    await browser.close()
-                    return None, None, None
-                clean_li = linkedin_url.split('?')[0].rstrip('/')
-                li_pages = [clean_li]
-                if '/company/' in clean_li:
-                    li_pages.append(f"{clean_li}/about")
-                for li_page in li_pages:
-                    if getattr(automation_worker, "cancel_requested", False):
-                        logger.info("Agent: Cancellation requested. Aborting scraper...")
-                        await browser.close()
-                        return None, None, None
-                    try:
-                        logger.info(f"Agent: Deep scanning LinkedIn page: {li_page}")
-                        await page.goto(li_page, wait_until="domcontentloaded", timeout=12000)
-                        await asyncio.sleep(2)
-                        
-                        # Extract website from LinkedIn page
-                        page_web = await check_website_on_social_page(page)
-                        if page_web:
-                            if getattr(automation_worker, "cancel_requested", False):
-                                logger.info("Agent: Cancellation requested. Aborting scraper...")
-                                await browser.close()
-                                return None, None, None
-                            logger.info(f"Agent: Discovered website listed in LinkedIn profile: '{page_web}'")
-                            website_email, website_email_page = await find_email_from_company_website(page_web)
-                            if website_email:
-                                logger.info(
-                                    f"Agent: Found email '{website_email}' on website contact page '{website_email_page}' from LinkedIn-discovered site."
-                                )
-                                await browser.close()
-                                return website_email, page_web, "Website Contact Page"
-                            await browser.close()
-                            return None, page_web, None
-                            
-                        # Extract emails
-                        content = await page.content()
-                        matches = EMAIL_REGEX.findall(content)
-                        emails = [m.lower() for m in matches if is_valid_email(m)]
-                        if emails:
-                            logger.info(f"Agent: Scraped email '{emails[0]}' from LinkedIn profile.")
-                            await browser.close()
-                            return emails[0], None, "LinkedIn"
-                    except Exception as e:
-                        logger.warning(f"Error scraping LinkedIn page {li_page}: {e}")
-
-            # Direct Search Snippet Crawler Fallback: if no email was found on social profiles, query Bing directly
-            try:
-                if getattr(automation_worker, "cancel_requested", False):
-                    logger.info("Agent: Cancellation requested. Aborting scraper...")
-                    await browser.close()
-                    return None, None, None
-                logger.info("Agent: Email not found on profiles. Executing direct search engine snippet query...")
-                for direct_query in search_variants:
-                    if getattr(automation_worker, "cancel_requested", False):
-                        logger.info("Agent: Cancellation requested. Aborting scraper...")
-                        await browser.close()
-                        return None, None, None
-                    bing_url = f"https://www.bing.com/search?q={urllib.parse.quote_plus(direct_query)}"
-                    await page.goto(bing_url, wait_until="domcontentloaded", timeout=7000)
-                    await asyncio.sleep(1.5)
-                    
-                    content = await page.content()
-                    matches = EMAIL_REGEX.findall(content)
-                    emails = [m.lower() for m in matches if is_valid_email(m)]
-                    if emails:
-                        logger.info(f"Agent: Scraped email '{emails[0]}' directly from search result snippets for query '{direct_query}'.")
-                        await browser.close()
-                        return emails[0], None, "Direct Search"
-            except Exception as e:
-                logger.warning(f"Direct search snippet query failed: {e}")
-
-            # Brahmastra 3: Reverse Phone Number Mapping query on Bing
-            if phone_number:
-                if getattr(automation_worker, "cancel_requested", False):
-                    logger.info("Agent: Cancellation requested. Aborting scraper...")
-                    await browser.close()
-                    return None, None, None
-                try:
-                    clean_phone = re.sub(r'[^\d+]', '', phone_number)
-                    if len(clean_phone) >= 7:
-                        logger.info(f"Agent: Executing Reverse Phone Mapping query for '{phone_number}'...")
-                        phone_query = f'"{phone_number}" email'
-                        bing_phone_url = f"https://www.bing.com/search?q={urllib.parse.quote_plus(phone_query)}"
-                        await page.goto(bing_phone_url, wait_until="domcontentloaded", timeout=7000)
-                        await asyncio.sleep(1.5)
-                        
-                        content = await page.content()
-                        matches = EMAIL_REGEX.findall(content)
-                        emails = [m.lower() for m in matches if is_valid_email(m)]
-                        if emails:
-                            logger.info(f"Agent: Scraped email '{emails[0]}' via Reverse Phone mapping on Bing.")
-                            await browser.close()
-                            return emails[0], None, "Reverse Phone Search"
-                except Exception as e:
-                    logger.warning(f"Reverse Phone mapping query failed: {e}")
-
-            await browser.close()
-            
-    except Exception as e:
-        logger.error(f"Playwright pipeline crash inside thread: {e}")
+                        logger.info(f"Agent: Scraped email '{emails[0]}' via Reverse Phone mapping on DDG.")
+                        return emails[0], None, "Reverse Phone Search"
+        except Exception as e:
+            logger.warning(f"Reverse Phone mapping query failed: {e}")
 
     return None, None, None
-
-def find_email_for_company_in_thread(company_name: str, location: str, phone_number: str = "") -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """
-    Synchronous worker running in a separate OS thread to execute the Playwright coroutine
-    with a fresh ProactorEventLoop.
-    """
-    if sys.platform == 'win32':
-        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
-        
-    loop = asyncio.new_event_loop()
-    try:
-        asyncio.set_event_loop(loop)
-        return loop.run_until_complete(run_playwright_scraper(company_name, location, phone_number))
-    finally:
-        loop.close()
-
-async def find_email_for_company(company_name: str, location: str, phone_number: str = "") -> Tuple[Optional[str], Optional[str], Optional[str]]:
-    """
-    Public API of the email scraper.
-    Delegates execution to a separate thread to prevent asyncio loop clashes in Uvicorn on Windows.
-    """
-    return await asyncio.to_thread(find_email_for_company_in_thread, company_name, location, phone_number)

@@ -139,6 +139,7 @@ async def run_google_maps_playwright_scraper(query: str, location: str) -> List[
                     break
             
             from app.services import automation_worker
+            listings = await page.locator("a.hfpxzc").all()
             for item in listings[:20]:  # Scrape top 20 leads
                 if getattr(automation_worker, "cancel_requested", False):
                     logger.info("Playwright Google Maps Scraper: Cancel requested. Aborting...")

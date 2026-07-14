@@ -29,6 +29,12 @@ const automationService = {
     getProgress: async () => {
         const response = await api.get('/automation/progress');
         return response.data;
+    },
+    
+    // Fetch live metrics for the queue system (Pending vs Sent)
+    getQueueStatus: async () => {
+        const response = await api.get('/automation/queue-status');
+        return response.data;
     }
 };
 

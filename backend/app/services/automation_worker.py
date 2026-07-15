@@ -245,9 +245,15 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                     return 0
                 else:
                     is_redesign = True
+                    log_progress(f"Autopilot: Lead '{name}' has a weak website (Score: {avg_score:.1f}/100). Queueing redesign outreach.")
             except Exception as audit_err:
-                log_progress(f"Autopilot: Failed to audit site '{website_url}': {audit_err} (skipped)")
-                return 0
+                log_progress(f"Autopilot: Website audit unavailable for '{website_url}': {audit_err}. Treating as redesign candidate.")
+                is_redesign = True
+                suggestions = [f"Website audit failed: {audit_err}"]
+        else:
+            is_redesign = True
+            suggestions = ["No custom website URL was detected; this is a strong redesign candidate."]
+            log_progress(f"Autopilot: Lead '{name}' has no usable website URL. Queueing redesign outreach without a full site audit.")
 
         # Prevent duplicate outreach: check if already exists in DB
         existing = await co_repo.collection.find_one({"name": name})

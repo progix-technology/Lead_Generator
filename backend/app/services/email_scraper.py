@@ -131,6 +131,67 @@ def is_valid_email(email: str) -> bool:
             
     return True
 
+
+def extract_emails_from_html(html: str) -> List[str]:
+    """Extract valid emails from raw HTML without loading images or interactive assets."""
+    if not html:
+        return []
+
+    candidates: List[str] = []
+    for match in EMAIL_REGEX.findall(html):
+        if is_valid_email(match):
+            candidates.append(match.lower())
+
+    mailto_matches = re.findall(r'mailto:([^"\'\s<>]+)', html, re.I)
+    for match in mailto_matches:
+        cleaned = match.strip().rstrip('>').lower()
+        if is_valid_email(cleaned):
+            candidates.append(cleaned)
+
+    seen = set()
+    ordered: List[str] = []
+    for email in candidates:
+        if email not in seen:
+            seen.add(email)
+            ordered.append(email)
+    return ordered
+
+
+def build_priority_candidate_urls(website_url: str) -> List[str]:
+    """Build a small list of likely contact/about URLs to inspect before any browser work."""
+    if not website_url:
+        return []
+
+    normalized = _normalize_site_url(website_url).rstrip('/')
+    candidates = [normalized]
+    for suffix in ["/contact", "/contact-us", "/about", "/about-us", "/team", "/support", "/help", "/get-in-touch"]:
+        candidates.append(urljoin(normalized + '/', suffix.lstrip('/')))
+    return candidates
+
+
+def extract_social_links_from_html(html: str, base_url: str = "") -> List[str]:
+    """Extract Facebook/LinkedIn/Instagram links referenced from a page's HTML."""
+    if not html:
+        return []
+
+    links: List[str] = []
+    seen = set()
+    for match in re.finditer(r'<a[^>]+href=["\']([^"\']+)["\']', html, re.I):
+        href = match.group(1).strip()
+        if not href or href.startswith(("mailto:", "tel:", "javascript:")):
+            continue
+        if not href.startswith(("http://", "https://")):
+            href = urljoin(base_url, href)
+        if not href.startswith(("http://", "https://")):
+            continue
+        lower_href = href.lower()
+        if any(domain in lower_href for domain in ["facebook.com", "instagram.com", "linkedin.com"]):
+            if href not in seen:
+                seen.add(href)
+                links.append(href)
+    return links
+
+
 async def scrape_url_for_emails(page, url: str) -> List[str]:
     """Visits a URL using httpx (fast) or Playwright (fallback) and extracts all unique valid emails."""
     logger.info(f"Agent: Scanning {url}...")
@@ -179,8 +240,8 @@ def _normalize_site_url(url: str) -> str:
 
 async def find_email_from_company_website(website_url: str) -> Tuple[Optional[str], Optional[str]]:
     """
-    Scans a company's own website, prioritizing homepage/contact/about pages,
-    and returns the first valid email found along with the page URL where it was discovered.
+    Scans a company's own website using lightweight HTML requests first,
+    prioritizing homepage/contact/about pages and avoiding image-heavy loads.
     """
     from app.services.places import should_use_playwright
 
@@ -188,79 +249,133 @@ async def find_email_from_company_website(website_url: str) -> Tuple[Optional[st
     if not website_url:
         return None, None
 
-    if not should_use_playwright():
-        logger.info("Company website email scan skipped: browser automation is disabled in this environment.")
-        return None, None
-
-    candidate_pages: List[str] = [website_url]
-    seen_pages = {website_url.rstrip("/")}
-
+    logger.info(f"Company website email scan: trying lightweight HTML scan for {website_url}")
     try:
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            )
-            page = await context.new_page()
+        import httpx
+        from bs4 import BeautifulSoup
 
-            async def block_resources(route):
-                if route.request.resource_type in ["image", "media", "font", "stylesheet"]:
-                    await route.abort()
-                else:
-                    await route.continue_()
+        seen_pages = {website_url.rstrip("/")}
+        candidate_pages = build_priority_candidate_urls(website_url)
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        }
 
-            await page.route("**/*", block_resources)
+        async with httpx.AsyncClient(verify=False, timeout=6.0, follow_redirects=True) as client:
+            social_candidates: List[str] = []
+            for candidate_url in candidate_pages[:8]:
+                try:
+                    response = await client.get(candidate_url, headers=headers)
+                    if response.status_code >= 400:
+                        continue
 
+                    html = response.text or ""
+                    html_emails = extract_emails_from_html(html)
+                    if html_emails:
+                        return html_emails[0], candidate_url
+
+                    social_links = extract_social_links_from_html(html, candidate_url)
+                    for social_link in social_links:
+                        if social_link not in seen_pages:
+                            seen_pages.add(social_link)
+                            social_candidates.append(social_link)
+
+                    soup = BeautifulSoup(html, "html.parser")
+                    for anchor in soup.find_all("a", href=True):
+                        href = anchor.get("href", "")
+                        if not href or href.startswith(("mailto:", "tel:", "javascript:")):
+                            continue
+                        if not href.startswith(("http://", "https://")):
+                            href = urljoin(candidate_url, href)
+                        if not href.startswith(("http://", "https://")):
+                            continue
+                        lower_href = href.lower()
+                        if any(term in lower_href for term in ["contact", "about", "team", "support", "help", "privacy", "legal", "reach-us", "get-in-touch"]):
+                            normalized = href.split("#")[0].rstrip("/")
+                            if normalized not in seen_pages:
+                                seen_pages.add(normalized)
+                                candidate_pages.append(normalized)
+                except Exception as page_err:
+                    logger.warning(f"HTML contact scan failed for {candidate_url}: {page_err}")
+
+            for social_candidate in social_candidates[:8]:
+                try:
+                    social_emails = await scrape_url_for_emails(None, social_candidate)
+                    if social_emails:
+                        return social_emails[0], social_candidate
+                except Exception as social_err:
+                    logger.warning(f"Social link scan failed for {social_candidate}: {social_err}")
+
+        if should_use_playwright():
+            logger.info("HTML scan found no emails; falling back to Playwright for %s", website_url)
+            candidate_pages = [website_url]
+            seen_pages = {website_url.rstrip("/")}
             try:
-                await page.goto(website_url, wait_until="domcontentloaded", timeout=12000)
-                await asyncio.sleep(1.5)
-                homepage_emails = await scrape_url_for_emails(page, website_url)
-                if homepage_emails:
-                    await browser.close()
-                    return homepage_emails[0], website_url
+                async with async_playwright() as p:
+                    browser = await p.chromium.launch(headless=True)
+                    context = await browser.new_context(
+                        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                    )
+                    page = await context.new_page()
 
-                links = await page.evaluate("""() => {
-                    const anchors = Array.from(document.querySelectorAll('a[href]'));
-                    return anchors.map(a => a.href);
-                }""")
+                    async def block_resources(route):
+                        if route.request.resource_type in ["image", "media", "font", "stylesheet"]:
+                            await route.abort()
+                        else:
+                            await route.continue_()
 
-                priority_terms = [
-                    "contact", "about", "team", "support", "help", "privacy", "legal",
-                    "impressum", "company", "our-story", "get-in-touch", "reach-us"
-                ]
+                    await page.route("**/*", block_resources)
 
-                for raw_link in links:
-                    if not raw_link or not raw_link.startswith(("http://", "https://")):
-                        continue
-                    if urlparse(raw_link).netloc and urlparse(raw_link).netloc != urlparse(website_url).netloc:
-                        continue
-
-                    lower_link = raw_link.lower()
-                    if any(term in lower_link for term in priority_terms):
-                        normalized = raw_link.split("#")[0].rstrip("/")
-                        if normalized not in seen_pages:
-                            seen_pages.add(normalized)
-                            candidate_pages.append(normalized)
-
-                # Fall back to a couple of common paths if they were not linked explicitly
-                for suffix in ["/contact", "/contact-us", "/about", "/about-us", "/team"]:
-                    guessed = urljoin(website_url.rstrip("/") + "/", suffix.lstrip("/"))
-                    normalized = guessed.rstrip("/")
-                    if normalized not in seen_pages:
-                        seen_pages.add(normalized)
-                        candidate_pages.append(normalized)
-
-                for candidate_url in candidate_pages[1:6]:
                     try:
-                        page_emails = await scrape_url_for_emails(page, candidate_url)
-                        if page_emails:
+                        await page.goto(website_url, wait_until="domcontentloaded", timeout=12000)
+                        await asyncio.sleep(1.5)
+                        homepage_emails = await scrape_url_for_emails(page, website_url)
+                        if homepage_emails:
                             await browser.close()
-                            return page_emails[0], candidate_url
-                    except Exception as page_err:
-                        logger.warning(f"Website contact scan failed for {candidate_url}: {page_err}")
+                            return homepage_emails[0], website_url
 
-            finally:
-                await browser.close()
+                        links = await page.evaluate("""() => {
+                            const anchors = Array.from(document.querySelectorAll('a[href]'));
+                            return anchors.map(a => a.href);
+                        }""")
+
+                        priority_terms = [
+                            "contact", "about", "team", "support", "help", "privacy", "legal",
+                            "impressum", "company", "our-story", "get-in-touch", "reach-us"
+                        ]
+
+                        for raw_link in links:
+                            if not raw_link or not raw_link.startswith(("http://", "https://")):
+                                continue
+                            if urlparse(raw_link).netloc and urlparse(raw_link).netloc != urlparse(website_url).netloc:
+                                continue
+
+                            lower_link = raw_link.lower()
+                            if any(term in lower_link for term in priority_terms):
+                                normalized = raw_link.split("#")[0].rstrip("/")
+                                if normalized not in seen_pages:
+                                    seen_pages.add(normalized)
+                                    candidate_pages.append(normalized)
+
+                        for suffix in ["/contact", "/contact-us", "/about", "/about-us", "/team"]:
+                            guessed = urljoin(website_url.rstrip("/") + "/", suffix.lstrip("/"))
+                            normalized = guessed.rstrip("/")
+                            if normalized not in seen_pages:
+                                seen_pages.add(normalized)
+                                candidate_pages.append(normalized)
+
+                        for candidate_url in candidate_pages[1:6]:
+                            try:
+                                page_emails = await scrape_url_for_emails(page, candidate_url)
+                                if page_emails:
+                                    await browser.close()
+                                    return page_emails[0], candidate_url
+                            except Exception as page_err:
+                                logger.warning(f"Website contact scan failed for {candidate_url}: {page_err}")
+
+                    finally:
+                        await browser.close()
+            except Exception as e:
+                logger.warning(f"Playwright fallback failed for {website_url}: {e}")
     except Exception as e:
         logger.warning(f"Company website email scan failed for {website_url}: {e}")
 
@@ -322,7 +437,7 @@ async def check_website_on_social_page(page) -> Optional[str]:
         logger.warning(f"Error checking website on social page: {e}")
     return None
 
-async def ddg_lite_search(query: str) -> List[str]:
+async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[str]:
     """Lightning fast search using DuckDuckGo Lite via HTTPX."""
     try:
         import httpx
@@ -357,20 +472,13 @@ async def ddg_lite_search(query: str) -> List[str]:
             
             if extract_snippets:
                 for td in soup.find_all("td", class_="snippet"):
-                    results.append(td.get_text(separator=' ', strip=True))
-            else:
-                for a in soup.find_all("a", href=True):
-                    href = a["href"]
-                    if "uddg=" in href:
-                        try:
-                            parts = href.split("uddg=")
-                            if len(parts) > 1:
-                                target = parts[1].split("&")[0]
-                                href = urllib.parse.unquote(target)
-                                results.append(href)
-                        except Exception:
-                            pass
-            return results
+                    snippet_text = td.get_text(separator=' ', strip=True)
+                    if snippet_text:
+                        results.append(snippet_text)
+                if results:
+                    return results
+
+            return links if links else results
     except Exception as e:
         logger.warning(f"DDG Lite search failed for query '{query}': {e}")
         return []

@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: lead-generator
+    env: python
+    rootDir: backend
+    buildCommand: bash build.sh
+    startCommand: python run.py
+    envVars:
+      - key: RENDER
+        value: true
+      - key: PLAYWRIGHT_DISABLED
+        value: true
+      - key: PYTHON_VERSION
+        value: 3.14.3

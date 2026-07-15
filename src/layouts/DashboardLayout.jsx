@@ -35,7 +35,7 @@ const DashboardLayout = () => {
     };
 
     fetchNotifs();
-    const interval = setInterval(fetchNotifs, 15000); // Poll every 15 seconds
+    const interval = setInterval(fetchNotifs, 60000); // Poll every 60 seconds (reduced from 15s to save server load)
     return () => clearInterval(interval);
   }, []);
 

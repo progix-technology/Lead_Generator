@@ -122,7 +122,7 @@ export default function AutomatedCampaigns() {
       } catch (err) { }
     };
     fetchQueueStatus();
-    interval = setInterval(fetchQueueStatus, 5000);
+    interval = setInterval(fetchQueueStatus, 30000); // Poll every 30 seconds (reduced from 5s to save server load)
     return () => clearInterval(interval);
   }, []);
 

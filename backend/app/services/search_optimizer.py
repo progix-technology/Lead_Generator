@@ -122,15 +122,25 @@ def expand_keyword(category: str) -> List[str]:
     ]
 
 def get_city_level_locations(location: str) -> List[str]:
-    """If the location is a state or country, expands it to city-level granularity."""
-    loc_lower = (location or "").lower().strip().replace(" ", "")
+    """If the location is strictly a state or country, expands it to city-level granularity. Keeps city level intact."""
+    if not location:
+        return [""]
+        
+    loc_clean = location.strip()
+    
+    # If the location is already a specific city + state (contains comma, e.g. "San Diego, CA"),
+    # do not expand it to other cities.
+    if "," in loc_clean:
+        return [loc_clean]
+        
+    loc_lower = loc_clean.lower().replace(" ", "")
     
     # Check if we have city-level granularity pre-configured
     for state, cities in STATE_CITIES.items():
-        if state == loc_lower or state in loc_lower:
-            return [f"{city}, {location}" for city in cities[:8]]  # Target top 8 cities to keep searches fast & highly relevant
+        if state == loc_lower:
+            return [f"{city}, {loc_clean}" for city in cities[:8]]  # Target top 8 cities
             
-    return [location]
+    return [loc_clean]
 
 def generate_search_queries(category: str, location: str) -> List[str]:
     """Generates a list of high-quality search queries/phrases with operators & contact-intent modifiers."""

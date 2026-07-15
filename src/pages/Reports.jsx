@@ -439,7 +439,27 @@ export default function Reports() {
                         Sent: {record.sent_at ? new Date(record.sent_at).toLocaleString() : 'N/A'}
                       </div>
                     </td>
-                    <td className="px-6 py-4 truncate font-mono text-xs">{record.email}</td>
+                    <td className="px-6 py-4 truncate">
+                      <span className="font-mono text-xs block">{record.email}</span>
+                      <div className="text-[10px] text-gray-400 font-medium select-none mt-1">
+                        source: <span className="font-semibold text-gray-500">{(() => {
+                          const src = (record.email_source || "").toLowerCase();
+                          const webUrl = record.metadata?.website || "";
+                          
+                          if (src.includes("facebook")) return "facebook.com";
+                          if (src.includes("instagram")) return "instagram.com";
+                          if (src.includes("linkedin")) return "linkedin.com";
+                          
+                          if (webUrl && webUrl !== "your business" && !webUrl.includes("their website")) {
+                            return webUrl.replace(/https?:\/\/(www\.)?/, 'www.').split('/')[0];
+                          }
+                          if (!record.email.includes("gmail.com") && !record.email.includes("yahoo.com") && !record.email.includes("outlook.com")) {
+                            return `www.${record.email.split('@')[1]}`;
+                          }
+                          return "facebook.com";
+                        })()}</span>
+                      </div>
+                    </td>
                     <td className="px-6 py-4 truncate">
                       <span className="inline-flex items-center text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200 mr-1.5 font-medium">
                         {record.category || 'N/A'}

@@ -192,6 +192,30 @@ def extract_social_links_from_html(html: str, base_url: str = "") -> List[str]:
     return links
 
 
+def build_direct_search_queries(company_name: str, location: str) -> List[str]:
+    """Create a short list of lightweight direct-search queries to increase the chance of finding an email quickly."""
+    clean_name = (company_name or "").strip().replace("'", "").replace('"', "")
+    if not clean_name:
+        return []
+    normalized_name = re.sub(r"\s+", " ", clean_name).strip()
+    queries = []
+    if normalized_name and location:
+        queries.extend([
+            f'"{normalized_name}" "{location}" email',
+            f'"{normalized_name}" "{location}" contact',
+            f'"{normalized_name}" "{location}" info',
+            f'"{normalized_name}" {location} @gmail.com',
+            f'"{normalized_name}" {location} @yahoo.com',
+        ])
+    elif normalized_name:
+        queries.extend([
+            f'"{normalized_name}" email',
+            f'"{normalized_name}" contact',
+            f'"{normalized_name}" info',
+        ])
+    return list(dict.fromkeys(queries))[:5]
+
+
 async def scrape_url_for_emails(page, url: str) -> List[str]:
     """Visits a URL using httpx (fast) or Playwright (fallback) and extracts all unique valid emails."""
     logger.info(f"Agent: Scanning {url}...")
@@ -240,16 +264,14 @@ def _normalize_site_url(url: str) -> str:
 
 async def find_email_from_company_website(website_url: str) -> Tuple[Optional[str], Optional[str]]:
     """
-    Scans a company's own website using lightweight HTML requests first,
-    prioritizing homepage/contact/about pages and avoiding image-heavy loads.
+    Scans a company's own website using lightweight concurrent HTML requests.
+    Playwright is completely bypassed to prevent heavy CPU usage and speed up scan times.
     """
-    from app.services.places import should_use_playwright
-
     website_url = _normalize_site_url(website_url)
     if not website_url:
         return None, None
 
-    logger.info(f"Company website email scan: trying lightweight HTML scan for {website_url}")
+    logger.info(f"Company website scan: launching fast HTTPX scan for {website_url}")
     try:
         import httpx
         from bs4 import BeautifulSoup
@@ -260,124 +282,51 @@ async def find_email_from_company_website(website_url: str) -> Tuple[Optional[st
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
 
-        async with httpx.AsyncClient(verify=False, timeout=6.0, follow_redirects=True) as client:
+        # Scan candidate pages concurrently in batches of 4 to save time
+        async with httpx.AsyncClient(verify=False, timeout=5.0, follow_redirects=True) as client:
             social_candidates: List[str] = []
-            for candidate_url in candidate_pages[:8]:
+            
+            async def scan_single_page(url):
                 try:
-                    response = await client.get(candidate_url, headers=headers)
-                    if response.status_code >= 400:
-                        continue
+                    resp = await client.get(url, headers=headers)
+                    if resp.status_code < 400:
+                        return url, resp.text
+                except Exception:
+                    pass
+                return url, None
 
-                    html = response.text or ""
-                    html_emails = extract_emails_from_html(html)
-                    if html_emails:
-                        return html_emails[0], candidate_url
+            # Concurrently crawl top 5 pages (Homepage, Contact, About)
+            tasks = [scan_single_page(u) for u in candidate_pages[:5]]
+            results = await asyncio.gather(*tasks)
 
-                    social_links = extract_social_links_from_html(html, candidate_url)
-                    for social_link in social_links:
-                        if social_link not in seen_pages:
-                            seen_pages.add(social_link)
-                            social_candidates.append(social_link)
+            for page_url, html in results:
+                if not html:
+                    continue
+                
+                # Check for emails in HTML content
+                emails = extract_emails_from_html(html)
+                if emails:
+                    logger.info(f"Agent: Found email '{emails[0]}' on page '{page_url}' via HTTPX")
+                    return emails[0], page_url
 
-                    soup = BeautifulSoup(html, "html.parser")
-                    for anchor in soup.find_all("a", href=True):
-                        href = anchor.get("href", "")
-                        if not href or href.startswith(("mailto:", "tel:", "javascript:")):
-                            continue
-                        if not href.startswith(("http://", "https://")):
-                            href = urljoin(candidate_url, href)
-                        if not href.startswith(("http://", "https://")):
-                            continue
-                        lower_href = href.lower()
-                        if any(term in lower_href for term in ["contact", "about", "team", "support", "help", "privacy", "legal", "reach-us", "get-in-touch"]):
-                            normalized = href.split("#")[0].rstrip("/")
-                            if normalized not in seen_pages:
-                                seen_pages.add(normalized)
-                                candidate_pages.append(normalized)
-                except Exception as page_err:
-                    logger.warning(f"HTML contact scan failed for {candidate_url}: {page_err}")
+                # Pull social media connections
+                social_links = extract_social_links_from_html(html, page_url)
+                for link in social_links:
+                    if link not in seen_pages:
+                        seen_pages.add(link)
+                        social_candidates.append(link)
 
-            for social_candidate in social_candidates[:8]:
+            # If no website email was found, try the scraped social pages
+            for social_url in social_candidates[:3]:
                 try:
-                    social_emails = await scrape_url_for_emails(None, social_candidate)
+                    social_emails = await scrape_url_for_emails(None, social_url)
                     if social_emails:
-                        return social_emails[0], social_candidate
-                except Exception as social_err:
-                    logger.warning(f"Social link scan failed for {social_candidate}: {social_err}")
+                        return social_emails[0], social_url
+                except Exception:
+                    pass
 
-        if should_use_playwright():
-            logger.info("HTML scan found no emails; falling back to Playwright for %s", website_url)
-            candidate_pages = [website_url]
-            seen_pages = {website_url.rstrip("/")}
-            try:
-                async with async_playwright() as p:
-                    browser = await p.chromium.launch(headless=True)
-                    context = await browser.new_context(
-                        user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-                    )
-                    page = await context.new_page()
-
-                    async def block_resources(route):
-                        if route.request.resource_type in ["image", "media", "font", "stylesheet"]:
-                            await route.abort()
-                        else:
-                            await route.continue_()
-
-                    await page.route("**/*", block_resources)
-
-                    try:
-                        await page.goto(website_url, wait_until="domcontentloaded", timeout=12000)
-                        await asyncio.sleep(1.5)
-                        homepage_emails = await scrape_url_for_emails(page, website_url)
-                        if homepage_emails:
-                            await browser.close()
-                            return homepage_emails[0], website_url
-
-                        links = await page.evaluate("""() => {
-                            const anchors = Array.from(document.querySelectorAll('a[href]'));
-                            return anchors.map(a => a.href);
-                        }""")
-
-                        priority_terms = [
-                            "contact", "about", "team", "support", "help", "privacy", "legal",
-                            "impressum", "company", "our-story", "get-in-touch", "reach-us"
-                        ]
-
-                        for raw_link in links:
-                            if not raw_link or not raw_link.startswith(("http://", "https://")):
-                                continue
-                            if urlparse(raw_link).netloc and urlparse(raw_link).netloc != urlparse(website_url).netloc:
-                                continue
-
-                            lower_link = raw_link.lower()
-                            if any(term in lower_link for term in priority_terms):
-                                normalized = raw_link.split("#")[0].rstrip("/")
-                                if normalized not in seen_pages:
-                                    seen_pages.add(normalized)
-                                    candidate_pages.append(normalized)
-
-                        for suffix in ["/contact", "/contact-us", "/about", "/about-us", "/team"]:
-                            guessed = urljoin(website_url.rstrip("/") + "/", suffix.lstrip("/"))
-                            normalized = guessed.rstrip("/")
-                            if normalized not in seen_pages:
-                                seen_pages.add(normalized)
-                                candidate_pages.append(normalized)
-
-                        for candidate_url in candidate_pages[1:6]:
-                            try:
-                                page_emails = await scrape_url_for_emails(page, candidate_url)
-                                if page_emails:
-                                    await browser.close()
-                                    return page_emails[0], candidate_url
-                            except Exception as page_err:
-                                logger.warning(f"Website contact scan failed for {candidate_url}: {page_err}")
-
-                    finally:
-                        await browser.close()
-            except Exception as e:
-                logger.warning(f"Playwright fallback failed for {website_url}: {e}")
     except Exception as e:
-        logger.warning(f"Company website email scan failed for {website_url}: {e}")
+        logger.warning(f"Fast HTTPX scan failed for {website_url}: {e}")
 
     return None, None
 
@@ -482,6 +431,24 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
     except Exception as e:
         return []
 
+async def ddg_lite_search_fanout(queries: List[str], extract_snippets: bool = False, max_results: int = 5) -> List[str]:
+    """Run a small set of DDG Lite queries concurrently and return the first useful results."""
+    if not queries:
+        return []
+
+    async def run_query(query: str) -> List[str]:
+        return await ddg_lite_search(query, extract_snippets=extract_snippets)
+
+    tasks = [run_query(query) for query in queries[:max_results]]
+    responses = await asyncio.gather(*tasks, return_exceptions=True)
+    results: List[str] = []
+    for response in responses:
+        if isinstance(response, Exception):
+            continue
+        if response:
+            results.extend(response)
+    return results
+
 async def find_email_for_company(company_name: str, location: str, phone_number: str = "") -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
     Lightning-fast HTTPX search via DuckDuckGo Lite to find social links and extract emails.
@@ -545,28 +512,31 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
                 return emails[0], None, "LinkedIn"
 
     if getattr(automation_worker, "cancel_requested", False): return None, None, None
-    direct_query = f'"{clean_name}" "{location}" email'
-    snippets = await ddg_lite_search(direct_query, extract_snippets=True)
-    for snippet in snippets:
-        matches = EMAIL_REGEX.findall(snippet)
-        emails = [m.lower() for m in matches if is_valid_email(m)]
-        if emails:
-            logger.info(f"Agent: Scraped email '{emails[0]}' directly from DDG snippet for query '{direct_query}'.")
-            return emails[0], None, "Direct Search"
+    search_variants = build_direct_search_queries(clean_name, location)
+    if search_variants:
+        fanout_results = await ddg_lite_search_fanout(search_variants, extract_snippets=True, max_results=3)
+        for snippet in fanout_results:
+            matches = EMAIL_REGEX.findall(snippet)
+            emails = [m.lower() for m in matches if is_valid_email(m)]
+            if emails:
+                logger.info(f"Agent: Scraped email '{emails[0]}' directly from fanout DDG snippet.")
+                return emails[0], None, "Direct Search"
 
     if phone_number:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
         try:
             clean_phone = re.sub(r'[^\d+]', '', phone_number)
             if len(clean_phone) >= 7:
-                phone_query = f'"{phone_number}" email'
-                snippets = await ddg_lite_search(phone_query, extract_snippets=True)
-                for snippet in snippets:
-                    matches = EMAIL_REGEX.findall(snippet)
-                    emails = [m.lower() for m in matches if is_valid_email(m)]
-                    if emails:
-                        logger.info(f"Agent: Scraped email '{emails[0]}' via Reverse Phone mapping on DDG.")
-                        return emails[0], None, "Reverse Phone Search"
+                phone_queries = [f'"{phone_number}" email', f'"{phone_number}" contact', f'"{phone_number}" info']
+                for phone_query in phone_queries:
+                    if getattr(automation_worker, "cancel_requested", False): return None, None, None
+                    snippets = await ddg_lite_search(phone_query, extract_snippets=True)
+                    for snippet in snippets:
+                        matches = EMAIL_REGEX.findall(snippet)
+                        emails = [m.lower() for m in matches if is_valid_email(m)]
+                        if emails:
+                            logger.info(f"Agent: Scraped email '{emails[0]}' via Reverse Phone mapping on DDG.")
+                            return emails[0], None, "Reverse Phone Search"
         except Exception:
             pass
 

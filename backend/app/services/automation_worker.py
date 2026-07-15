@@ -14,6 +14,7 @@ from app.services.email_scraper import find_email_for_company, find_email_from_c
 from app.services.email_verifier import verify_email_existence
 from app.services.email_sender import send_smtp_email
 from app.services.llm_service import clean_first_name_with_ai
+from bson import ObjectId
 
 logger = logging.getLogger(__name__)
 
@@ -241,8 +242,8 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 
                 avg_score = (seo_score + ui_score + performance_score) / 3
                 if avg_score >= 70:
-                    log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100) (skipped)")
-                    return 0
+                    is_redesign = False
+                    log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100). Continuing with contact discovery.")
                 else:
                     is_redesign = True
                     log_progress(f"Autopilot: Lead '{name}' has a weak website (Score: {avg_score:.1f}/100). Queueing redesign outreach.")
@@ -265,7 +266,7 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         discovered_web = None
         email_source = None
 
-        if is_redesign and website_url:
+        if website_url:
             try:
                 website_email, website_email_page = await find_email_from_company_website(website_url)
                 if website_email:
@@ -276,7 +277,7 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
 
         # Deep crawl emails if not found on website
         try:
-            if not (is_redesign and website_url and email):
+            if not (website_url and email):
                 email, discovered_web, email_source = await find_email_for_company(name, location, company.get("phone_number", ""))
             
             if discovered_web:
@@ -299,7 +300,8 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 log_progress(f"Autopilot: Email '{email}' is unverified. Reason: {verification_reason} (skipped).")
                 await repo.create_record({
                     "company_name": name, "email": email, "category": category, "location": location,
-                    "subject": None, "body": None, "status": "Unverified", "error_message": verification_reason
+                    "subject": None, "body": None, "status": "Unverified", "error_message": verification_reason,
+                    "email_source": email_source
                 })
                 return 0
 
@@ -363,7 +365,17 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
 
             await repo.create_record({
                 "company_name": name, "email": email, "category": category, "location": location,
-                "subject": subject, "body": body, "status": "Pending_Email", "error_message": None
+                "subject": subject, "body": body, "status": "Pending_Email", "error_message": None,
+                "email_source": email_source,
+                "metadata": {
+                    "first_name": greeting_name,
+                    "website": website_url or "your business",
+                    "is_redesign": is_redesign,
+                    "performance_score": performance_score,
+                    "ui_score": ui_score,
+                    "seo_score": seo_score,
+                    "suggestions": suggestions
+                }
             })
             log_progress(f"Autopilot: ✓ Lead '{name}' queued successfully! (Pending Mailer Dispatch)")
             return 1
@@ -388,6 +400,7 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
 async def run_mailer_cycle(db) -> Dict[str, Any]:
     """
     Grabs one pending email from the database and sends it safely.
+    Dynamically recompiles subject/body at send-time using current active templates.
     """
     import random
     repo = AutomationRepository(db)
@@ -400,15 +413,63 @@ async def run_mailer_cycle(db) -> Dict[str, Any]:
     subject = record["subject"]
     body = record["body"]
     name = record["company_name"]
+    category = record.get("category") or "your business"
+    location = record.get("location") or "your area"
     
     current_settings = await repo.get_settings()
+    
+    # Recompile templates dynamically (runs for both new metadata and older legacy queued emails)
+    meta = record.get("metadata") or {}
+    first_name = meta.get("first_name") or name.split()[0] or "Team"
+    website = meta.get("website") or "your business"
+    
+    # If subject contains 'website' or body has score/performance diagnostic, treat as redesign candidate
+    is_redesign = meta.get("is_redesign")
+    if is_redesign is None:
+        is_redesign = "website" in (subject or "").lower() or "score:" in (body or "").lower()
+    
+    if is_redesign:
+        subject_tmpl = current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
+        body_tmpl = current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
+        suggestions = meta.get("suggestions") or ["Outdated responsive layout and performance bottlenecks."]
+        sug_bullets = "\n".join([f"• {s}" for s in suggestions]) if isinstance(suggestions, list) else suggestions
+        
+        subject = _apply_template(subject_tmpl, {
+            "company": name, "first_name": first_name, "website": website,
+            "industry": category, "location": location
+        })
+        body = _apply_template(body_tmpl, {
+            "company": name, "first_name": first_name, "website": website,
+            "industry": category, "location": location,
+            "performance_score": meta.get("performance_score") or 64,
+            "ui_score": meta.get("ui_score") or 58,
+            "seo_score": meta.get("seo_score") or 62,
+            "suggestions": sug_bullets
+        })
+    else:
+        subject_tmpl = current_settings.get("subject_template") or ""
+        body_tmpl = current_settings.get("body_template") or ""
+        
+        subject = _apply_template(subject_tmpl, {
+            "company": name, "first_name": first_name, "website": "your business", "industry": category,
+            "location": location, "current_platform": "Facebook", "service_type": "custom website design"
+        })
+        body = _apply_template(body_tmpl, {
+            "company": name, "first_name": first_name, "website": "your business", "industry": category,
+            "location": location, "current_platform": "Facebook", "service_type": "custom website design"
+        })
+
     html_body = f"<html><body><p>{_safe_str(body).replace(chr(10), '<br>')}</p></body></html>"
 
     log_progress(f"Autopilot Mailer: Dispatching queued email to '{email}'...")
     success = await send_smtp_email(email, subject, html_body, smtp_config=current_settings)
 
     if success:
-        await repo.update_record_status(record["id"], "Sent")
+        # Update record with actually sent subject and body for consistency
+        await repo.records_col.update_one(
+            {"_id": ObjectId(record["id"])},
+            {"$set": {"status": "Sent", "subject": subject, "body": body, "sent_at": datetime.utcnow(), "updated_at": datetime.utcnow()}}
+        )
         log_progress(f"Autopilot Mailer: ✓ Outreach email successfully delivered to '{name}' at '{email}'!")
         return {"status": "sent"}
     else:

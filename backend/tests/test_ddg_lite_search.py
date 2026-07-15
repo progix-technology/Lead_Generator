@@ -53,3 +53,11 @@ def test_ddg_lite_search_accepts_extract_snippets_argument(monkeypatch):
 
     results = asyncio.run(email_scraper.ddg_lite_search("test query", extract_snippets=True))
     assert results == ["hello@acme.com"]
+
+
+def test_build_direct_search_queries_creates_multiple_variant_queries():
+    queries = email_scraper.build_direct_search_queries("Acme Roofing", "San Ramon, CA")
+    assert len(queries) >= 4
+    assert any('"Acme Roofing" "San Ramon, CA"' in query for query in queries)
+    assert any('contact' in query.lower() or 'email' in query.lower() for query in queries)
+    assert any('"Acme Roofing"' in query for query in queries)

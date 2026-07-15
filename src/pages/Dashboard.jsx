@@ -2,16 +2,16 @@ import React, { useState, useEffect } from 'react';
 import Card from '../components/Card';
 import companyService from '../services/companyService';
 import automationService from '../services/automationService';
-import { 
-  FiMail, 
-  FiFolder, 
-  FiCheckCircle, 
-  FiAlertCircle, 
-  FiMapPin, 
-  FiTag, 
-  FiClock, 
-  FiActivity, 
-  FiSearch 
+import {
+  FiMail,
+  FiFolder,
+  FiCheckCircle,
+  FiAlertCircle,
+  FiMapPin,
+  FiTag,
+  FiClock,
+  FiActivity,
+  FiSearch
 } from 'react-icons/fi';
 
 export default function Dashboard() {
@@ -19,7 +19,7 @@ export default function Dashboard() {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Dashboard states
   const [selectedLocation, setSelectedLocation] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -32,13 +32,13 @@ export default function Dashboard() {
     try {
       setLoading(true);
       setError('');
-      
+
       // Fetch saved leads and automation dispatches
       const [leadsRes, recordsRes] = await Promise.all([
         companyService.getCompanies(0, 1000),
         automationService.getRecords(0, 1000)
       ]);
-      
+
       setCompanies(leadsRes.data || []);
       setRecords(recordsRes.data || []);
     } catch (err) {
@@ -107,7 +107,7 @@ export default function Dashboard() {
           <h2 className="text-xl font-bold text-gray-800 tracking-tight">Outreach Performance Dashboard</h2>
           <p className="text-gray-500 text-xs mt-1">Real-time statistics of cold email dispatches, categories, and target locations.</p>
         </div>
-        <button 
+        <button
           onClick={fetchDashboardData}
           className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-xl font-semibold hover:bg-blue-100 transition-colors shadow-sm cursor-pointer whitespace-nowrap self-start md:self-auto"
         >
@@ -122,7 +122,7 @@ export default function Dashboard() {
       )}
 
       {/* Primary Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <Card className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm relative overflow-hidden">
           <div className="flex justify-between items-start">
             <div>
@@ -139,27 +139,40 @@ export default function Dashboard() {
         <Card className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm relative overflow-hidden">
           <div className="flex justify-between items-start">
             <div>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Total Emails Sent</span>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Total Processed Attempts</span>
               <span className="text-3xl font-extrabold text-gray-900 mt-2 block">{totalSent}</span>
             </div>
             <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl border border-indigo-100 shadow-sm">
               <FiMail size={20} />
             </div>
           </div>
-          <span className="text-[10px] text-gray-400 mt-4 block">Outreach pitches sent to website-less leads.</span>
+          <span className="text-[10px] text-gray-400 mt-4 block">Total campaign pipeline runs (Sent + Failed + Skipped).</span>
         </Card>
 
         <Card className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm relative overflow-hidden">
           <div className="flex justify-between items-start">
             <div>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Delivery Success</span>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Total Emails Sent</span>
               <span className="text-3xl font-extrabold text-green-600 mt-2 block">{successCount}</span>
             </div>
             <div className="p-2.5 bg-green-50 text-green-600 rounded-xl border border-green-100 shadow-sm">
               <FiCheckCircle size={20} />
             </div>
           </div>
-          <span className="text-[10px] text-gray-400 mt-4 block">SMTP verified successful dispatches.</span>
+          <span className="text-[10px] text-gray-400 mt-4 block">Outreach pitches successfully delivered to leads.</span>
+        </Card>
+
+        <Card className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm relative overflow-hidden">
+          <div className="flex justify-between items-start">
+            <div>
+              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block">Failed Emails</span>
+              <span className="text-3xl font-extrabold text-red-600 mt-2 block">{failCount}</span>
+            </div>
+            <div className="p-2.5 bg-red-50 text-red-600 rounded-xl border border-red-100 shadow-sm">
+              <FiAlertCircle size={20} />
+            </div>
+          </div>
+          <span className="text-[10px] text-gray-400 mt-4 block">SMTP dispatches that failed to send.</span>
         </Card>
 
         <Card className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm relative overflow-hidden">
@@ -178,6 +191,142 @@ export default function Dashboard() {
         </Card>
       </div>
 
+      {/* Day-Wise Mountain Chart (Visual Area Chart) */}
+      <Card className="space-y-4">
+        <div className="border-b border-gray-100 pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white">
+          <div>
+            <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+              <FiActivity className="text-indigo-500" /> Day-Wise Outreach Performance (Mountain Chart)
+            </h3>
+            <p className="text-xs text-gray-400 mt-1">Graphical progression of sent vs failed email counts over the last 15 days.</p>
+          </div>
+        </div>
+
+        <div className="h-[280px] w-full pt-4">
+          {(() => {
+            // Group records by date (local representation, e.g. "Jul 15")
+            const dateGroups = {};
+            const sortedRecords = [...records].sort((a, b) => new Date(a.sent_at || a.created_at) - new Date(b.sent_at || b.created_at));
+            
+            // Collect the last 15 active days
+            sortedRecords.forEach(r => {
+              const dateObj = new Date(r.sent_at || r.created_at);
+              if (isNaN(dateObj.getTime())) return;
+              const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              
+              if (!dateGroups[dateStr]) {
+                dateGroups[dateStr] = { date: dateStr, sent: 0, failed: 0 };
+              }
+              if (r.status === 'Sent') {
+                dateGroups[dateStr].sent += 1;
+              } else if (r.status === 'Failed') {
+                dateGroups[dateStr].failed += 1;
+              }
+            });
+
+            const chartData = Object.values(dateGroups).slice(-15);
+
+            if (chartData.length === 0) {
+              return <div className="text-xs text-gray-400 italic text-center py-20">No outreach history records available to plot timeline.</div>;
+            }
+
+            // Simple responsive premium CSS grid-based SVG mountain chart to guarantee zero package dependency crashes
+            const maxVal = Math.max(...chartData.map(d => d.sent + d.failed), 5);
+            const width = 800;
+            const height = 220;
+            const padding = 35;
+            
+            const pointsSent = chartData.map((d, i) => {
+              const x = padding + (i * (width - 2 * padding)) / Math.max(chartData.length - 1, 1);
+              const y = height - padding - (d.sent * (height - 2 * padding)) / maxVal;
+              return `${x},${y}`;
+            });
+
+            const pointsFailed = chartData.map((d, i) => {
+              const x = padding + (i * (width - 2 * padding)) / Math.max(chartData.length - 1, 1);
+              const y = height - padding - (d.failed * (height - 2 * padding)) / maxVal;
+              return `${x},${y}`;
+            });
+
+            const areaSent = [
+              `${padding},${height - padding}`,
+              ...pointsSent,
+              `${width - padding},${height - padding}`
+            ].join(' ');
+
+            const areaFailed = [
+              `${padding},${height - padding}`,
+              ...pointsFailed,
+              `${width - padding},${height - padding}`
+            ].join(' ');
+
+            return (
+              <div className="w-full overflow-x-auto">
+                <div className="min-w-[600px] relative">
+                  <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full font-sans select-none">
+                    <defs>
+                      <linearGradient id="gradientSent" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#4f46e5" stopOpacity="0.45"/>
+                        <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.0"/>
+                      </linearGradient>
+                      <linearGradient id="gradientFailed" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity="0.3"/>
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity="0.0"/>
+                      </linearGradient>
+                    </defs>
+
+                    {/* Horizontal grid lines */}
+                    {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
+                      const y = padding + ratio * (height - 2 * padding);
+                      const val = Math.round(maxVal * (1 - ratio));
+                      return (
+                        <g key={idx}>
+                          <line x1={padding} y1={y} x2={width - padding} y2={y} stroke="#f1f5f9" strokeWidth="1.5" />
+                          <text x={padding - 8} y={y + 4} textAnchor="end" className="text-[10px] fill-gray-400 font-semibold">{val}</text>
+                        </g>
+                      );
+                    })}
+
+                    {/* Filled Mountain Areas */}
+                    <polygon points={areaSent} fill="url(#gradientSent)" />
+                    <polygon points={areaFailed} fill="url(#gradientFailed)" />
+
+                    {/* Stroke lines */}
+                    <polyline points={pointsSent.join(' ')} fill="none" stroke="#4f46e5" strokeWidth="3" strokeLinecap="round" />
+                    <polyline points={pointsFailed.join(' ')} fill="none" stroke="#ef4444" strokeWidth="2.5" strokeDasharray="4 4" strokeLinecap="round" />
+
+                    {/* Data circle points */}
+                    {chartData.map((d, i) => {
+                      const x = padding + (i * (width - 2 * padding)) / Math.max(chartData.length - 1, 1);
+                      const ySent = height - padding - (d.sent * (height - 2 * padding)) / maxVal;
+                      return (
+                        <g key={i}>
+                          <circle cx={x} cy={ySent} r="4.5" fill="#ffffff" stroke="#4f46e5" strokeWidth="3" />
+                          {/* X Axis Labels */}
+                          <text x={x} y={height - 12} textAnchor="middle" className="text-[10px] fill-gray-500 font-bold">{d.date}</text>
+                        </g>
+                      );
+                    })}
+                  </svg>
+
+                  {/* Custom Legends */}
+                  <div className="absolute top-0 right-4 flex items-center gap-4 text-xs font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-3 w-5 rounded bg-indigo-600 opacity-80 inline-block border border-indigo-700"></span>
+                      <span className="text-gray-700">Sent Success</span>
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-3 w-5 rounded bg-red-500 opacity-60 inline-block border border-red-600"></span>
+                      <span className="text-gray-700">Sent Failed</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      </Card>
+
       {/* Visual breakdown graphs (Sundar charts) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Categories Bar Chart Card */}
@@ -186,7 +335,7 @@ export default function Dashboard() {
             <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
               <FiTag className="text-blue-500" /> Top Targeted Business Fields (Industries)
             </h3>
-            
+
             {/* Filter controls */}
             <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-2.5 py-1 bg-gray-50 shadow-sm self-start">
               <span className="text-[10px] font-bold text-gray-400 uppercase">City:</span>
@@ -211,7 +360,7 @@ export default function Dashboard() {
                 const maxCount = Math.max(...categoryChartData.map(d => d.count), 1);
                 const percentWidth = Math.round((stat.count / maxCount) * 100);
                 const percentOfTotal = totalSent > 0 ? Math.round((stat.count / totalSent) * 100) : 0;
-                
+
                 // Colors mapping for premium look
                 const barColors = [
                   'bg-gradient-to-r from-blue-500 to-indigo-500',
@@ -220,7 +369,7 @@ export default function Dashboard() {
                   'bg-gradient-to-r from-purple-500 to-pink-500',
                   'bg-gradient-to-r from-teal-500 to-cyan-500'
                 ];
-                
+
                 return (
                   <div key={idx} className="space-y-1">
                     <div className="flex justify-between text-xs font-semibold text-gray-700">
@@ -231,8 +380,8 @@ export default function Dashboard() {
                       <span>{stat.count} sent <span className="text-[10px] text-gray-400 font-normal">({percentOfTotal}%)</span></span>
                     </div>
                     <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden shadow-inner border border-gray-150">
-                      <div 
-                        className={`${barColors[idx % barColors.length]} h-full rounded-full transition-all duration-700 ease-out shadow-md`} 
+                      <div
+                        className={`${barColors[idx % barColors.length]} h-full rounded-full transition-all duration-700 ease-out shadow-md`}
                         style={{ width: `${percentWidth}%` }}
                       ></div>
                     </div>
@@ -249,7 +398,7 @@ export default function Dashboard() {
             <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
               <FiMapPin className="text-green-500" /> Top Targeted Cities (Locations)
             </h3>
-            
+
             {/* Filter controls */}
             <div className="flex items-center gap-1.5 border border-gray-200 rounded-lg px-2.5 py-1 bg-gray-50 shadow-sm self-start">
               <span className="text-[10px] font-bold text-gray-400 uppercase">Field:</span>
@@ -274,7 +423,7 @@ export default function Dashboard() {
                 const maxCount = Math.max(...locationChartData.map(d => d.count), 1);
                 const percentWidth = Math.round((stat.count / maxCount) * 100);
                 const percentOfTotal = totalSent > 0 ? Math.round((stat.count / totalSent) * 100) : 0;
-                
+
                 const barColors = [
                   'bg-gradient-to-r from-green-500 to-teal-500',
                   'bg-gradient-to-r from-teal-500 to-emerald-500',
@@ -282,7 +431,7 @@ export default function Dashboard() {
                   'bg-gradient-to-r from-green-400 to-green-600',
                   'bg-gradient-to-r from-teal-400 to-teal-600'
                 ];
-                
+
                 return (
                   <div key={idx} className="space-y-1">
                     <div className="flex justify-between text-xs font-semibold text-gray-700">
@@ -293,8 +442,8 @@ export default function Dashboard() {
                       <span>{stat.count} sent <span className="text-[10px] text-gray-400 font-normal">({percentOfTotal}%)</span></span>
                     </div>
                     <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden shadow-inner border border-gray-150">
-                      <div 
-                        className={`${barColors[idx % barColors.length]} h-full rounded-full transition-all duration-700 ease-out shadow-md`} 
+                      <div
+                        className={`${barColors[idx % barColors.length]} h-full rounded-full transition-all duration-700 ease-out shadow-md`}
                         style={{ width: `${percentWidth}%` }}
                       ></div>
                     </div>
@@ -344,11 +493,10 @@ export default function Dashboard() {
                     {record.location || 'N/A'}
                   </span>
 
-                  <span className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
-                    record.status === 'Sent' 
-                      ? 'bg-green-50 border-green-200 text-green-700' 
+                  <span className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${record.status === 'Sent'
+                      ? 'bg-green-50 border-green-200 text-green-700'
                       : 'bg-red-50 border-red-200 text-red-600'
-                  }`}>
+                    }`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${record.status === 'Sent' ? 'bg-green-500' : 'bg-red-500'}`}></span>
                     {record.status}
                   </span>

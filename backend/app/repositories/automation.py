@@ -242,20 +242,15 @@ class AutomationRepository:
         return [self._format_id(doc) async for doc in cursor]
 
     async def count_records(self) -> int:
-        return await self.records_col.count_documents({})
+        return await self.records_col.count_documents({"status": "Sent"})
 
     async def count_records_today(self) -> int:
-        from datetime import datetime
-        start_of_day = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-        auto_sent = await self.records_col.count_documents({
+        from datetime import datetime, timezone
+        start_of_day = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        return await self.records_col.count_documents({
             "sent_at": {"$gte": start_of_day},
             "status": "Sent"
         })
-        comp_sent = await self._db["companies"].count_documents({
-            "updated_at": {"$gte": start_of_day},
-            "status": "Emailed"
-        })
-        return auto_sent + comp_sent
 
     async def create_record(self, data: Dict[str, Any]) -> Dict[str, Any]:
         data["created_at"] = datetime.utcnow()

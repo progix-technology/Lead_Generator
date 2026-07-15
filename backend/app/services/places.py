@@ -264,12 +264,25 @@ async def scrape_yelp_businesses(query: str, location: str) -> List[Dict[str, An
     except ImportError:
         return []
     try:
-        search_url = f"https://www.yelp.com/search?find_desc={urllib.parse.quote_plus(query)}&find_loc={urllib.parse.quote_plus(location)}"
+        # Yelp requires find_loc to be populated properly
+        loc_str = location if location else "United States"
+        search_url = f"https://www.yelp.com/search?find_desc={urllib.parse.quote_plus(query)}&find_loc={urllib.parse.quote_plus(loc_str)}"
+        
+        # Real-looking browser headers to bypass Yelp's bot mitigation
         headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive",
+            "Upgrade-Insecure-Requests": "1",
+            "Sec-Fetch-Dest": "document",
+            "Sec-Fetch-Mode": "navigate",
+            "Sec-Fetch-Site": "none",
+            "Sec-Fetch-User": "?1",
+            "Cache-Control": "max-age=0",
         }
+        
         async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
             resp = await client.get(search_url, headers=headers)
             if resp.status_code != 200:
@@ -277,12 +290,8 @@ async def scrape_yelp_businesses(query: str, location: str) -> List[Dict[str, An
                 return []
             soup = BeautifulSoup(resp.text, "html.parser")
             companies = []
-            # Yelp business cards are in <li> elements with data-testid
-            cards = soup.select("li.undefined > div[data-testid]") or soup.select("div.businessName__09f24__EYSZE") or []
-            # Broader fallback selector
-            if not cards:
-                cards = soup.find_all("h3", class_=re.compile(r"businessName"))
-            # Most reliable: find all business name links
+            
+            # Extract biz links
             business_links = soup.find_all("a", href=re.compile(r"/biz/"))
             seen = set()
             for link in business_links:
@@ -290,7 +299,8 @@ async def scrape_yelp_businesses(query: str, location: str) -> List[Dict[str, An
                 href = link.get("href", "")
                 if not name or len(name) < 3 or name in seen:
                     continue
-                if any(kw in name.lower() for kw in ["sponsored", "ad", "more"]):
+                # Skip pagination, map links or ads
+                if any(kw in name.lower() for kw in ["sponsored", "ad", "more", "next", "previous"]):
                     continue
                 seen.add(name)
                 companies.append({
@@ -309,52 +319,72 @@ async def scrape_yelp_businesses(query: str, location: str) -> List[Dict[str, An
         return []
 
 def query_ddg_local_sync(query: str, location: str) -> List[Dict[str, Any]]:
-    """Synchronous crawler querying DDG local search using urllib."""
-    import urllib.request
-    import urllib.parse
+    """Synchronous fallback search using HTTPX. Gracefully parses HTML results as fallback when JSON local.js blocks."""
     import json
-    
-    q_str = f"{query} {location}"
+    from bs4 import BeautifulSoup
+    q_str = f"{query} {location}".strip()
     url = f"https://duckduckgo.com/local.js?q={urllib.parse.quote_plus(q_str)}&tg=maps_places&l=us-en"
+    
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
         "Referer": "https://duckduckgo.com/",
-        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept": "*/*",
         "Accept-Language": "en-US,en;q=0.9",
-        "DNT": "1",
-        "Connection": "keep-alive",
     }
     
-    req = urllib.request.Request(url, headers=headers)
-    # Increased timeout to 8s for Render's slower network
-    with urllib.request.urlopen(req, timeout=8.0) as response:
-        html = response.read().decode('utf-8')
-        data = json.loads(html)
-        results = data.get("results", [])
-        
-        companies = []
-        for item in results:
-            # Safely resolve rating_count
-            reviews = item.get("reviews")
-            rating_count = 0
-            if isinstance(reviews, list):
-                rating_count = len(reviews)
-            elif isinstance(reviews, (int, float)):
-                rating_count = int(reviews)
-            elif isinstance(item.get("review_count"), (int, float)):
-                rating_count = int(item.get("review_count"))
-                
-            company = {
-                "name": item.get("name", "Unknown"),
-                "industry": query.capitalize(),
-                "address": item.get("address", location),
-                "phone_number": item.get("display_phone") or item.get("phone", ""),
-                "website_url": item.get("website") or item.get("url") or "",
-                "rating": item.get("rating"),
-                "rating_count": rating_count
-            }
-            companies.append(company)
-        return companies
+    try:
+        with httpx.Client(verify=False, timeout=5.0) as client:
+            resp = client.get(url, headers=headers)
+            if resp.status_code == 200:
+                try:
+                    data = resp.json()
+                    results = data.get("results", [])
+                    if results:
+                        companies = []
+                        for item in results:
+                            reviews = item.get("reviews")
+                            rating_count = len(reviews) if isinstance(reviews, list) else int(reviews) if isinstance(reviews, (int, float)) else 0
+                            companies.append({
+                                "name": item.get("name", "Unknown"),
+                                "industry": query.capitalize(),
+                                "address": item.get("address", location),
+                                "phone_number": item.get("display_phone") or item.get("phone", ""),
+                                "website_url": item.get("website") or item.get("url") or "",
+                                "rating": item.get("rating"),
+                                "rating_count": rating_count
+                            })
+                        return companies
+                except Exception:
+                    pass
+            
+            # If JSON endpoint is blocked (HTTP 403 or Timeout), crawl DDG HTML search results directly for active domains
+            html_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(q_str)}"
+            html_resp = client.get(html_url, headers=headers)
+            if html_resp.status_code == 200:
+                soup = BeautifulSoup(html_resp.text, "html.parser")
+                companies = []
+                # Parse business anchors from results list
+                for result in soup.select("a.result__snippet"):
+                    title_elem = result.find_previous("a", class_="result__url")
+                    if title_elem:
+                        name = title_elem.get_text(strip=True)
+                        link = title_elem.get("href", "")
+                        if "uddg=" in link:
+                            link = urllib.parse.unquote(link.split("uddg=")[1].split("&")[0])
+                        if name and link and not any(d in link for d in ["youtube.com", "wikipedia.org", "facebook.com", "instagram.com"]):
+                            companies.append({
+                                "name": name.split("-")[0].strip(),
+                                "industry": query.capitalize(),
+                                "address": location,
+                                "phone_number": "",
+                                "website_url": link,
+                                "rating": None,
+                                "rating_count": 0
+                            })
+                return companies
+    except Exception as e:
+        logger.warning(f"DDG fallback search failed for '{q_str}': {e}")
+    return []
 
 async def query_nominatim_businesses(query: str, location: str) -> List[Dict[str, Any]]:
     """Free OpenStreetMap Nominatim search. Rate-limited to 1 req/sec via semaphore."""
@@ -448,6 +478,46 @@ async def scrape_google_maps_fallback(query: str, location: str) -> List[Dict[st
     return await asyncio.to_thread(scrape_google_maps_in_thread, query, location)
 
 
+async def query_google_places_api_new(query: str, location: str) -> List[Dict[str, Any]]:
+    """Instant query to Google Places API (New) Text Search if API Key is configured."""
+    if not settings.GOOGLE_PLACES_API_KEY:
+        return []
+    url = "https://places.googleapis.com/v1/places:searchText"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": settings.GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount"
+    }
+    search_q = f"{query} in {location}".strip()
+    payload = {
+        "textQuery": search_q,
+        "languageCode": "en",
+        "pageSize": 20
+    }
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, headers=headers, json=payload, timeout=8.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                places = data.get("places", [])
+                companies = []
+                for p in places:
+                    name = p.get("displayName", {}).get("text", "Unknown")
+                    companies.append({
+                        "name": name,
+                        "industry": query.capitalize(),
+                        "address": p.get("formattedAddress", location),
+                        "phone_number": p.get("nationalPhoneNumber", ""),
+                        "website_url": p.get("websiteUri", ""),
+                        "rating": p.get("rating"),
+                        "rating_count": p.get("userRatingCount", 0)
+                    })
+                logger.info(f"Google Places API (New): Found {len(companies)} businesses for '{search_q}'")
+                return companies
+    except Exception as e:
+        logger.warning(f"Google Places API (New) query failed: {e}")
+    return []
+
 async def search_companies_google_places(
     query: str, 
     location: str = "", 
@@ -456,6 +526,12 @@ async def search_companies_google_places(
     """
     Use optimized search strategy to fetch, expand, query and deduplicate local businesses.
     """
+    # 0. Primary Fast Path: Google Places API (New) (instant, verified leads)
+    if settings.GOOGLE_PLACES_API_KEY:
+        api_leads = await query_google_places_api_new(query, location)
+        if api_leads:
+            return api_leads, None
+
     from app.services.search_optimizer import (
         expand_keyword, get_city_level_locations, generate_map_search_queries, deduplicate_leads
     )

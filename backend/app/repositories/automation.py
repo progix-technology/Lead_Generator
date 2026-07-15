@@ -5,6 +5,7 @@ from bson import ObjectId
 
 class AutomationRepository:
     def __init__(self, db: AsyncIOMotorDatabase):
+        self._db = db
         self.settings_col = db["automation_settings"]
         self.records_col = db["automation_records"]
 
@@ -250,7 +251,7 @@ class AutomationRepository:
             "sent_at": {"$gte": start_of_day},
             "status": "Sent"
         })
-        comp_sent = await self.db["companies"].count_documents({
+        comp_sent = await self._db["companies"].count_documents({
             "updated_at": {"$gte": start_of_day},
             "status": "Emailed"
         })

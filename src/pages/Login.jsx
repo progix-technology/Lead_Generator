@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import authService from '../services/authService';
+import progixLogo from '../images/progix_logo-removebg-preview.png';
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -49,13 +50,17 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-inter">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 tracking-tight">
-          LeadGen Pro
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-inter">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
+        {/* Brand Logo Image */}
+        <div className="mx-auto h-24 w-24 bg-white rounded-full flex items-center justify-center shadow-md border border-gray-150 transform hover:scale-105 transition-all p-2 overflow-hidden">
+          <img src={progixLogo} alt="Progix Logo" className="h-full w-full object-contain rounded-full" />
+        </div>
+        <h2 className="mt-6 text-center text-2xl font-extrabold text-gray-900 tracking-tight uppercase">
+          PROGIX TECHNOLOGY LLP
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          {isLogin ? 'Sign in to access your dashboard' : 'Create a new account'}
+        <p className="mt-2 text-center text-xs font-bold text-gray-400 uppercase tracking-widest">
+          Lead Discovery & Autopilot Platform
         </p>
       </div>
 

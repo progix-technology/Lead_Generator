@@ -122,6 +122,32 @@ async def get_progress(
     from app.services.automation_worker import automation_progress, is_batch_running
     return {"progress": automation_progress, "is_running": is_batch_running}
 
+@router.post("/resend/{record_id}", response_model=Dict[str, Any])
+async def resend_failed_email(
+    record_id: str,
+    repo: AutomationRepository = Depends(get_automation_repo),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Any:
+    """Re-queues a failed outreach record back to Pending_Email status so that Autopilot Mailer will pick it up again."""
+    from bson import ObjectId
+    from datetime import datetime
+    try:
+        record = await repo.records_col.find_one({"_id": ObjectId(record_id)})
+        if not record:
+            raise HTTPException(status_code=404, detail="Record not found")
+            
+        await repo.records_col.update_one(
+            {"_id": ObjectId(record_id)},
+            {"$set": {
+                "status": "Pending_Email", 
+                "error_message": None, 
+                "updated_at": datetime.utcnow()
+            }}
+        )
+        return {"status": "success", "message": "Email has been re-queued for sending."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.get("/test-ddg")
 async def test_ddg(query: str = "Drywall", location: str = "Canton, OH"):
     from app.services.places import scrape_google_maps_fallback

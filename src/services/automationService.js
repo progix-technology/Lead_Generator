@@ -35,6 +35,12 @@ const automationService = {
     getQueueStatus: async () => {
         const response = await api.get('/automation/queue-status');
         return response.data;
+    },
+
+    // Resend a failed outreach email
+    resendFailedEmail: async (recordId) => {
+        const response = await api.post(`/automation/resend/${recordId}`);
+        return response.data;
     }
 };
 

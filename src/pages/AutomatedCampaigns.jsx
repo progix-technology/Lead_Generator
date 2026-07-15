@@ -922,22 +922,48 @@ export default function AutomatedCampaigns() {
                       {new Date(record.sent_at).toLocaleDateString()} {new Date(record.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </td>
                     <td className="px-6 py-4 text-right align-middle">
-                      <button
-                        onClick={() => {
-                          setSelectedRecord(record);
-                          setShowPreviewModal(true);
-                        }}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${record.status === 'Sent'
-                            ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100/50'
-                            : record.status === 'Pending_Email'
-                              ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100/50'
-                              : record.status === 'Unverified'
-                                ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
-                                : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100/50'
-                          }`}
-                      >
-                        {record.status === 'Sent' ? 'View Mail ✓' : record.status === 'Pending_Email' ? 'Queued ⧖' : record.status === 'Unverified' ? 'Unverified ⚠' : 'Failed ⚠'}
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => {
+                            setSelectedRecord(record);
+                            setShowPreviewModal(true);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${record.status === 'Sent'
+                              ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100/50'
+                              : record.status === 'Pending_Email'
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100/50'
+                                : record.status === 'Unverified'
+                                  ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100/50'
+                                  : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100/50'
+                            }`}
+                        >
+                          {record.status === 'Sent' ? 'View Mail ✓' : record.status === 'Pending_Email' ? 'Queued ⧖' : record.status === 'Unverified' ? 'Unverified ⚠' : 'Failed ⚠'}
+                        </button>
+                        
+                        {record.status === 'Failed' && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await automationService.resendFailedEmail(record.id);
+                                // Instantly trigger stats refresh using parent fetches (like fetchRecords)
+                                if (typeof fetchHistory === 'function') {
+                                  fetchHistory();
+                                } else if (typeof fetchStatsConcurrently === 'function') {
+                                  fetchStatsConcurrently();
+                                } else {
+                                  window.location.reload();
+                                }
+                              } catch (err) {
+                                alert("Failed to re-queue email: " + (err.response?.data?.detail || err.message));
+                              }
+                            }}
+                            className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1"
+                            title="Re-queue and Resend outreach"
+                          >
+                            Resend ⟳
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))

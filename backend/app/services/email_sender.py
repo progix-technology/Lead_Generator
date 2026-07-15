@@ -40,9 +40,15 @@ def send_smtp_email_sync(to_email: str, subject: str, html_content: str, smtp_co
     msg.attach(part)
     
     try:
-        # Connect using TLS
-        server = smtplib.SMTP(host, port, timeout=10)
-        server.starttls()
+        # Connect using SSL if port is 465, otherwise fall back to TLS on port 587/other
+        if port == 465:
+            logger.info(f"SMTP: Connecting via Secure SSL to {host}:{port}...")
+            server = smtplib.SMTP_SSL(host, port, timeout=12)
+        else:
+            logger.info(f"SMTP: Connecting via TLS to {host}:{port}...")
+            server = smtplib.SMTP(host, port, timeout=12)
+            server.starttls()
+            
         server.login(username, password)
         server.sendmail(from_email, to_email, msg.as_string())
         server.quit()
@@ -50,7 +56,8 @@ def send_smtp_email_sync(to_email: str, subject: str, html_content: str, smtp_co
         return True
     except Exception as e:
         logger.error(f"Failed to send SMTP email to {to_email} using host {host}: {str(e)}")
-        return False
+        # Raise exception to bubble error message up to database status logs
+        raise e
 
 async def send_smtp_email(to_email: str, subject: str, html_content: str, smtp_config: Optional[dict] = None) -> bool:
     """

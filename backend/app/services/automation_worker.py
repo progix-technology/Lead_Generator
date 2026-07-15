@@ -462,21 +462,24 @@ async def run_mailer_cycle(db) -> Dict[str, Any]:
     html_body = f"<html><body><p>{_safe_str(body).replace(chr(10), '<br>')}</p></body></html>"
 
     log_progress(f"Autopilot Mailer: Dispatching queued email to '{email}'...")
-    success = await send_smtp_email(email, subject, html_body, smtp_config=current_settings)
-
-    if success:
-        # Update record with actually sent subject and body for consistency
-        await repo.records_col.update_one(
-            {"_id": ObjectId(record["id"])},
-            {"$set": {"status": "Sent", "subject": subject, "body": body, "sent_at": datetime.utcnow(), "updated_at": datetime.utcnow()}}
-        )
-        log_progress(f"Autopilot Mailer: ✓ Outreach email successfully delivered to '{name}' at '{email}'!")
-        return {"status": "sent"}
-    else:
-        await repo.update_record_status(record["id"], "Failed", "SMTP send failed")
-        log_progress(f"Autopilot Mailer: ✕ Failed to send SMTP email to '{name}' at '{email}'")
+    try:
+        success = await send_smtp_email(email, subject, html_body, smtp_config=current_settings)
+        if success:
+            # Update record with actually sent subject and body for consistency
+            await repo.records_col.update_one(
+                {"_id": ObjectId(record["id"])},
+                {"$set": {"status": "Sent", "subject": subject, "body": body, "sent_at": datetime.utcnow(), "updated_at": datetime.utcnow(), "error_message": None}}
+            )
+            log_progress(f"Autopilot Mailer: ✓ Outreach email successfully delivered to '{name}' at '{email}'!")
+            return {"status": "sent"}
+        else:
+            raise Exception("SMTP send function returned False")
+    except Exception as smtp_err:
+        err_msg = str(smtp_err)
+        await repo.update_record_status(record["id"], "Failed", err_msg)
+        log_progress(f"Autopilot Mailer: ✕ Failed to send SMTP email to '{name}' at '{email}': {err_msg}")
         from app.routes.notifications import push_notification
-        push_notification("error", f"SMTP send failed for '{name}' ({email})", source="email")
+        push_notification("error", f"SMTP send failed for '{name}' ({email}): {err_msg}", source="email")
         return {"status": "failed"}
 
 async def run_mailer_scheduler():

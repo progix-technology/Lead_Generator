@@ -226,6 +226,7 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         website_url = company.get("website_url")
 
         is_redesign = False
+        skip_lead = False
         seo_score = 0
         ui_score = 0
         performance_score = 0
@@ -241,20 +242,23 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 suggestions = audit_results["suggestions"]
                 
                 avg_score = (seo_score + ui_score + performance_score) / 3
-                if avg_score >= 70:
-                    is_redesign = False
-                    log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100). Continuing with contact discovery.")
-                else:
+                if avg_score < 60:
                     is_redesign = True
-                    log_progress(f"Autopilot: Lead '{name}' has a weak website (Score: {avg_score:.1f}/100). Queueing redesign outreach.")
+                    log_progress(f"Autopilot: Lead '{name}' has a weak website (Score: {avg_score:.1f}/100 < 60). Queueing redesign outreach.")
+                else:
+                    skip_lead = True
+                    log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100 >= 60). Skipping lead.")
             except Exception as audit_err:
-                log_progress(f"Autopilot: Website audit unavailable for '{website_url}': {audit_err}. Treating as redesign candidate.")
-                is_redesign = True
-                suggestions = [f"Website audit failed: {audit_err}"]
+                log_progress(f"Autopilot: Website audit unavailable for '{website_url}': {audit_err}. Skipping to avoid sending blindly.")
+                skip_lead = True
         else:
-            is_redesign = True
-            suggestions = ["No custom website URL was detected; this is a strong redesign candidate."]
-            log_progress(f"Autopilot: Lead '{name}' has no usable website URL. Queueing redesign outreach without a full site audit.")
+            # No custom website found - directly eligible for standard outreach (website creation pitch)
+            is_redesign = False
+            suggestions = ["No custom website URL was detected; this is a strong new website candidate."]
+            log_progress(f"Autopilot: Lead '{name}' has no website. Queueing new website creation pitch.")
+
+        if skip_lead:
+            return 0
 
         # Prevent duplicate outreach: check if already exists in DB
         existing = await co_repo.collection.find_one({"name": name})

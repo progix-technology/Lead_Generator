@@ -429,11 +429,15 @@ async def run_mailer_cycle(db) -> Dict[str, Any]:
     first_name = meta.get("first_name") or name.split()[0] or "Team"
     website = meta.get("website") or "your business"
     
-    # If metadata shows it has a website, or record has a custom website, treat strictly as redesign candidate
+    # If metadata shows it has a website, or record has a custom website, or email is custom domain, treat strictly as redesign candidate
     is_redesign = meta.get("is_redesign")
     if is_redesign is None:
         web_check = meta.get("website") or website or ""
-        has_custom_site = web_check and web_check != "your business" and not any(d in web_check.lower() for d in ["their website", "facebook.com", "instagram.com"])
+        # Check if email is custom domain (not freemail)
+        email_domain = email.split('@')[-1].lower() if '@' in email else ""
+        is_custom_email_domain = email_domain and not any(f in email_domain for f in ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "aol.com", "zoho.com", "mail.com", "proton.me", "protonmail.com", "yandex.com"])
+        
+        has_custom_site = (web_check and web_check != "your business" and not any(d in web_check.lower() for d in ["their website", "facebook.com", "instagram.com"])) or is_custom_email_domain
         is_redesign = has_custom_site or "website" in (subject or "").lower() or "score:" in (body or "").lower()
     
     if is_redesign:

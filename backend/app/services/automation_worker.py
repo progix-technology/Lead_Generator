@@ -429,10 +429,12 @@ async def run_mailer_cycle(db) -> Dict[str, Any]:
     first_name = meta.get("first_name") or name.split()[0] or "Team"
     website = meta.get("website") or "your business"
     
-    # If subject contains 'website' or body has score/performance diagnostic, treat as redesign candidate
+    # If metadata shows it has a website, or record has a custom website, treat strictly as redesign candidate
     is_redesign = meta.get("is_redesign")
     if is_redesign is None:
-        is_redesign = "website" in (subject or "").lower() or "score:" in (body or "").lower()
+        web_check = meta.get("website") or website or ""
+        has_custom_site = web_check and web_check != "your business" and not any(d in web_check.lower() for d in ["their website", "facebook.com", "instagram.com"])
+        is_redesign = has_custom_site or "website" in (subject or "").lower() or "score:" in (body or "").lower()
     
     if is_redesign:
         subject_tmpl = current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"

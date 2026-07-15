@@ -16,8 +16,17 @@ def test_playwright_is_disabled_on_render(monkeypatch):
     assert places.should_use_playwright() is False
 
 
+def test_playwright_is_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("RENDER", raising=False)
+    monkeypatch.delenv("PLAYWRIGHT_ENABLED", raising=False)
+    monkeypatch.delenv("PLAYWRIGHT_DISABLED", raising=False)
+    monkeypatch.delenv("LOCAL_DEV", raising=False)
+    assert places.should_use_playwright() is False
+
+
 def test_playwright_is_enabled_when_explicitly_requested(monkeypatch):
     monkeypatch.delenv("RENDER", raising=False)
     monkeypatch.setenv("PLAYWRIGHT_ENABLED", "true")
     monkeypatch.delenv("PLAYWRIGHT_DISABLED", raising=False)
+    monkeypatch.delenv("LOCAL_DEV", raising=False)
     assert places.should_use_playwright() is True

@@ -22,7 +22,11 @@ def _has_render_env() -> bool:
 
 
 def should_use_playwright() -> bool:
-    """Return whether browser automation should be attempted in the current environment."""
+    """Return whether browser automation should be attempted in the current environment.
+
+    Playwright is opt-in by default so Render-like deployments and other non-local
+    environments will skip browser automation unless it is explicitly enabled.
+    """
     explicit_disable = os.environ.get("PLAYWRIGHT_DISABLED", "").strip().lower()
     if explicit_disable in {"1", "true", "yes", "on"}:
         return False
@@ -31,7 +35,11 @@ def should_use_playwright() -> bool:
     if explicit_enable in {"1", "true", "yes", "on"}:
         return True
 
-    return not _has_render_env()
+    local_dev = os.environ.get("LOCAL_DEV", "").strip().lower()
+    if local_dev in {"1", "true", "yes", "on"}:
+        return True
+
+    return False
 
 # Semaphore to respect Nominatim's strict 1 req/sec rate limit
 _nominatim_sem = asyncio.Semaphore(1)

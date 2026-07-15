@@ -182,8 +182,14 @@ async def find_email_from_company_website(website_url: str) -> Tuple[Optional[st
     Scans a company's own website, prioritizing homepage/contact/about pages,
     and returns the first valid email found along with the page URL where it was discovered.
     """
+    from app.services.places import should_use_playwright
+
     website_url = _normalize_site_url(website_url)
     if not website_url:
+        return None, None
+
+    if not should_use_playwright():
+        logger.info("Company website email scan skipped: browser automation is disabled in this environment.")
         return None, None
 
     candidate_pages: List[str] = [website_url]

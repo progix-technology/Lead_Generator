@@ -1,14 +1,40 @@
 import httpx
 import logging
+import os
 import sys
 import re
 import urllib.parse
 import asyncio
 from typing import List, Dict, Any, Optional, Tuple
-from playwright.async_api import async_playwright
 from app.config.settings import settings
 
 logger = logging.getLogger(__name__)
+
+# Render sets this env var automatically — Playwright cannot run on Render free tier
+# (GPU crashes, missing dbus, V8 snapshot errors).
+# The decision is evaluated dynamically so the service remains safe even if the
+# environment changes after import time.
+def _has_render_env() -> bool:
+    render_flag = os.environ.get("RENDER", "").strip().lower()
+    if render_flag in {"1", "true", "yes", "on"}:
+        return True
+    return bool(os.environ.get("RENDER_SERVICE_NAME") or os.environ.get("RENDER_EXTERNAL_URL"))
+
+
+def should_use_playwright() -> bool:
+    """Return whether browser automation should be attempted in the current environment."""
+    explicit_disable = os.environ.get("PLAYWRIGHT_DISABLED", "").strip().lower()
+    if explicit_disable in {"1", "true", "yes", "on"}:
+        return False
+
+    explicit_enable = os.environ.get("PLAYWRIGHT_ENABLED", "").strip().lower()
+    if explicit_enable in {"1", "true", "yes", "on"}:
+        return True
+
+    return not _has_render_env()
+
+# Semaphore to respect Nominatim's strict 1 req/sec rate limit
+_nominatim_sem = asyncio.Semaphore(1)
 
 SYNONYMS = {
     "restaurant": ["restaurant", "cafe", "diner", "pizzeria", "grill", "eatery"],
@@ -107,6 +133,10 @@ async def run_google_maps_playwright_scraper(query: str, location: str) -> List[
     Playwright Google Maps direct scraper.
     Crawls Google Maps UI directly, scrolls container, and extracts listings.
     """
+    if not should_use_playwright():
+        logger.info("Playwright Fallback: Skipping browser-based Google Maps scraping in this environment.")
+        return []
+
     search_q = f"{query} in {location}" if location else query
     url = f"https://www.google.com/maps/search/{urllib.parse.quote_plus(search_q)}"
     
@@ -202,7 +232,13 @@ async def run_google_maps_playwright_scraper(query: str, location: str) -> List[
         return results
 
 def scrape_google_maps_in_thread(query: str, location: str) -> List[Dict[str, Any]]:
-    """Playwright loop runner inside independent OS thread."""
+    """Playwright loop runner inside independent OS thread. Only used locally (not on Render)."""
+    if not should_use_playwright():
+        return []  # Playwright does not work on Render free tier
+    try:
+        from playwright.async_api import async_playwright
+    except ImportError:
+        return []
     if sys.platform == 'win32':
         asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
         
@@ -212,6 +248,57 @@ def scrape_google_maps_in_thread(query: str, location: str) -> List[Dict[str, An
         return loop.run_until_complete(run_google_maps_playwright_scraper(query, location))
     finally:
         loop.close()
+
+async def scrape_yelp_businesses(query: str, location: str) -> List[Dict[str, Any]]:
+    """Scrape Yelp search results using httpx+BeautifulSoup. Works on Render, no API key needed."""
+    try:
+        from bs4 import BeautifulSoup
+    except ImportError:
+        return []
+    try:
+        search_url = f"https://www.yelp.com/search?find_desc={urllib.parse.quote_plus(query)}&find_loc={urllib.parse.quote_plus(location)}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        }
+        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+            resp = await client.get(search_url, headers=headers)
+            if resp.status_code != 200:
+                logger.warning(f"Yelp scraper: HTTP {resp.status_code} for '{query} {location}'")
+                return []
+            soup = BeautifulSoup(resp.text, "html.parser")
+            companies = []
+            # Yelp business cards are in <li> elements with data-testid
+            cards = soup.select("li.undefined > div[data-testid]") or soup.select("div.businessName__09f24__EYSZE") or []
+            # Broader fallback selector
+            if not cards:
+                cards = soup.find_all("h3", class_=re.compile(r"businessName"))
+            # Most reliable: find all business name links
+            business_links = soup.find_all("a", href=re.compile(r"/biz/"))
+            seen = set()
+            for link in business_links:
+                name = link.get_text(strip=True)
+                href = link.get("href", "")
+                if not name or len(name) < 3 or name in seen:
+                    continue
+                if any(kw in name.lower() for kw in ["sponsored", "ad", "more"]):
+                    continue
+                seen.add(name)
+                companies.append({
+                    "name": name,
+                    "industry": query.capitalize(),
+                    "address": location,
+                    "phone_number": "",
+                    "website_url": f"https://www.yelp.com{href}" if href.startswith("/") else href,
+                    "rating": None,
+                    "rating_count": 0,
+                })
+            logger.info(f"Yelp: Found {len(companies)} businesses for '{query} {location}'")
+            return companies[:20]
+    except Exception as e:
+        logger.warning(f"Yelp scraper failed: {e}")
+        return []
 
 def query_ddg_local_sync(query: str, location: str) -> List[Dict[str, Any]]:
     """Synchronous crawler querying DDG local search using urllib."""
@@ -262,83 +349,94 @@ def query_ddg_local_sync(query: str, location: str) -> List[Dict[str, Any]]:
         return companies
 
 async def query_nominatim_businesses(query: str, location: str) -> List[Dict[str, Any]]:
-    """Free OpenStreetMap Nominatim search as a reliable non-Playwright fallback."""
-    try:
-        search_q = f"{query} {location}"
-        url = "https://nominatim.openstreetmap.org/search"
-        params = {
-            "q": search_q,
-            "format": "json",
-            "limit": 20,
-            "addressdetails": 1,
-            "extratags": 1,
-        }
-        headers = {"User-Agent": "LeadGeneratorBot/1.0 (contact@progix.io)"}
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(url, params=params, headers=headers, timeout=8.0)
-            if resp.status_code != 200:
-                return []
-            data = resp.json()
-            companies = []
-            for item in data:
-                extra = item.get("extratags", {}) or {}
-                address = item.get("address", {}) or {}
-                name = item.get("namedetails", {}).get("name") or item.get("display_name", "").split(",")[0]
-                website = extra.get("website") or extra.get("url") or ""
-                phone = extra.get("phone") or extra.get("contact:phone") or ""
-                addr_str = ", ".join(filter(None, [
-                    address.get("road"), address.get("city") or address.get("town"), 
-                    address.get("state"), address.get("country")
-                ]))
-                if not name or name == "Unknown":
-                    continue
-                companies.append({
-                    "name": name,
-                    "industry": query.capitalize(),
-                    "address": addr_str or location,
-                    "phone_number": phone,
-                    "website_url": website,
-                    "rating": None,
-                    "rating_count": 0,
-                })
-            logger.info(f"Nominatim: Found {len(companies)} businesses for '{query} {location}'")
-            return companies
-    except Exception as e:
-        logger.warning(f"Nominatim search failed: {e}")
-        return []
+    """Free OpenStreetMap Nominatim search. Rate-limited to 1 req/sec via semaphore."""
+    async with _nominatim_sem:
+        await asyncio.sleep(1.1)  # Nominatim requires max 1 req/sec
+        try:
+            search_q = f"{query} {location}"
+            url = "https://nominatim.openstreetmap.org/search"
+            params = {
+                "q": search_q,
+                "format": "json",
+                "limit": 20,
+                "addressdetails": 1,
+                "extratags": 1,
+            }
+            headers = {"User-Agent": "LeadGeneratorBot/1.0 (contact@progix.io)"}
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(url, params=params, headers=headers, timeout=8.0)
+                if resp.status_code == 429:
+                    logger.warning("Nominatim: Rate limited (429). Skipping.")
+                    return []
+                if resp.status_code != 200:
+                    return []
+                data = resp.json()
+                companies = []
+                for item in data:
+                    extra = item.get("extratags", {}) or {}
+                    address = item.get("address", {}) or {}
+                    name = item.get("namedetails", {}).get("name") or item.get("display_name", "").split(",")[0]
+                    website = extra.get("website") or extra.get("url") or ""
+                    phone = extra.get("phone") or extra.get("contact:phone") or ""
+                    addr_str = ", ".join(filter(None, [
+                        address.get("road"), address.get("city") or address.get("town"),
+                        address.get("state"), address.get("country")
+                    ]))
+                    if not name or name == "Unknown":
+                        continue
+                    companies.append({
+                        "name": name,
+                        "industry": query.capitalize(),
+                        "address": addr_str or location,
+                        "phone_number": phone,
+                        "website_url": website,
+                        "rating": None,
+                        "rating_count": 0,
+                    })
+                logger.info(f"Nominatim: Found {len(companies)} businesses for '{query} {location}'")
+                return companies
+        except Exception as e:
+            logger.warning(f"Nominatim search failed: {e}")
+            return []
 
 async def scrape_google_maps_fallback(query: str, location: str) -> List[Dict[str, Any]]:
     """
-    Completely free keyless fallback search using DuckDuckGo Local Map search API.
-    Chain: DDG Local → OpenStreetMap Nominatim → Playwright (last resort)
+    Layered free search: DDG Local → Yelp HTML → Nominatim → Playwright (local only).
+    Playwright is completely skipped on Render (crashes due to missing GPU/V8/dbus).
     """
     from app.services import automation_worker
     if automation_worker.cancel_requested:
         return []
-        
-    # 1. Try DuckDuckGo Local (fast, free)
-    logger.info(f"Free Fallback: Querying DuckDuckGo Local Maps via urllib for '{query}' in '{location}'")
+
+    # 1. DuckDuckGo Local Maps
     try:
         companies = await asyncio.to_thread(query_ddg_local_sync, query, location)
         if companies:
-            logger.info(f"Free Fallback: DuckDuckGo Local found {len(companies)} businesses successfully!")
+            logger.info(f"DDG Local: Found {len(companies)} businesses for '{query}'")
             return companies
     except Exception as e:
-        logger.warning(f"Free Fallback: DuckDuckGo Local API search failed: {e}. Trying Nominatim...")
+        logger.warning(f"DDG Local failed: {e}. Trying Yelp...")
 
     if automation_worker.cancel_requested:
         return []
 
-    # 2. Try OpenStreetMap Nominatim (reliable, no browser needed)
+    # 2. Yelp HTML scrape (works reliably on Render)
+    yelp_results = await scrape_yelp_businesses(query, location)
+    if yelp_results:
+        return yelp_results
+
+    if automation_worker.cancel_requested:
+        return []
+
+    # 3. Nominatim (rate-limited to 1 req/sec)
     nom_results = await query_nominatim_businesses(query, location)
     if nom_results:
         return nom_results
 
-    if automation_worker.cancel_requested:
-        return []
+    if automation_worker.cancel_requested or not should_use_playwright():
+        return []  # Skip Playwright on Render — it crashes with GPU/V8 errors
 
-    # 3. Final fallback: Playwright (only if browser is installed)
-    logger.info(f"Playwright Fallback: Querying Google Maps: https://www.google.com/maps/search/{urllib.parse.quote_plus(query + ' ' + location)}")
+    # 4. Playwright — local development only
     return await asyncio.to_thread(scrape_google_maps_in_thread, query, location)
 
 

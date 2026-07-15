@@ -148,6 +148,43 @@ async def resend_failed_email(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.post("/clean-stale-queue", response_model=Dict[str, Any])
+async def clean_stale_queue(
+    repo: AutomationRepository = Depends(get_automation_repo),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Any:
+    """Removes stale Pending_Email records that have a website but is_redesign=False (queued under old rules)."""
+    pending = await repo.records_col.find({"status": "Pending_Email"}).to_list(length=5000)
+    
+    delete_ids = []
+    for record in pending:
+        meta = record.get("metadata") or {}
+        is_redesign = meta.get("is_redesign")
+        website = meta.get("website") or "your business"
+        
+        has_custom_site = (
+            website
+            and website != "your business"
+            and "their website" not in website.lower()
+            and "facebook.com" not in website.lower()
+            and "instagram.com" not in website.lower()
+            and "linkedin.com" not in website.lower()
+        )
+        
+        if has_custom_site and not is_redesign:
+            delete_ids.append(record["_id"])
+    
+    deleted_count = 0
+    if delete_ids:
+        result = await repo.records_col.delete_many({"_id": {"$in": delete_ids}})
+        deleted_count = result.deleted_count
+    
+    return {
+        "status": "success",
+        "deleted_count": deleted_count,
+        "message": f"Removed {deleted_count} stale non-redesign records from the Pending queue."
+    }
+
 @router.get("/test-ddg")
 async def test_ddg(query: str = "Drywall", location: str = "Canton, OH"):
     from app.services.places import scrape_google_maps_fallback

@@ -429,16 +429,25 @@ async def run_mailer_cycle(db) -> Dict[str, Any]:
     first_name = meta.get("first_name") or name.split()[0] or "Team"
     website = meta.get("website") or "your business"
     
-    # If metadata shows it has a website, or record has a custom website, or email is custom domain, treat strictly as redesign candidate
+    # Strictly determine is_redesign
     is_redesign = meta.get("is_redesign")
     if is_redesign is None:
         web_check = meta.get("website") or website or ""
-        # Check if email is custom domain (not freemail)
-        email_domain = email.split('@')[-1].lower() if '@' in email else ""
-        is_custom_email_domain = email_domain and not any(f in email_domain for f in ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "aol.com", "zoho.com", "mail.com", "proton.me", "protonmail.com", "yandex.com"])
-        
-        has_custom_site = (web_check and web_check != "your business" and not any(d in web_check.lower() for d in ["their website", "facebook.com", "instagram.com"])) or is_custom_email_domain
+        has_custom_site = web_check and web_check != "your business" and not any(d in web_check.lower() for d in ["their website", "facebook.com", "instagram.com"])
         is_redesign = has_custom_site or "website" in (subject or "").lower() or "score:" in (body or "").lower()
+    
+    # HARD GUARD: If company has a custom website but is_redesign is False,
+    # this record was queued under old rules (pre-score-check). Discard it silently.
+    web_check = meta.get("website") or website or ""
+    has_custom_site = web_check and web_check != "your business" and not any(
+        d in web_check.lower() for d in ["their website", "facebook.com", "instagram.com", "linkedin.com"]
+    )
+    if has_custom_site and not is_redesign:
+        log_progress(f"Autopilot Mailer: Discarding stale record for '{name}' (website present but not a redesign candidate). Removing from queue.")
+        await repo.records_col.delete_one({"_id": record["_id"] if "_id" in record else None} if "_id" in record else {"id": record.get("id")})
+        from bson import ObjectId
+        await repo.records_col.delete_one({"_id": ObjectId(record["id"])})
+        return {"status": "skipped", "reason": "stale_non_redesign_record"}
     
     if is_redesign:
         subject_tmpl = current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"

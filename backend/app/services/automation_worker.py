@@ -266,7 +266,9 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         discovered_web = None
         email_source = None
 
-        if website_url:
+        facebook_only = current_settings.get("facebook_only", False)
+
+        if website_url and not facebook_only:
             try:
                 website_email, website_email_page = await find_email_from_company_website(website_url)
                 if website_email:
@@ -275,9 +277,9 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
             except Exception as website_scan_err:
                 pass
 
-        # Deep crawl emails if not found on website
+        # Deep crawl emails if not found on website (or if we are strictly searching Facebook)
         try:
-            if not (website_url and email):
+            if not email:
                 email, discovered_web, email_source = await find_email_for_company(name, location, company.get("phone_number", ""))
             
             if discovered_web:

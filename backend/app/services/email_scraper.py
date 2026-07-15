@@ -450,15 +450,15 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
         }
         url = "https://lite.duckduckgo.com/lite/"
         
-        async with httpx.AsyncClient(verify=False) as client:
-            r = await client.post(url, data={"q": query}, headers=headers, timeout=5.0)
+        async with httpx.AsyncClient(verify=False, timeout=3.0) as client:
+            r = await client.post(url, data={"q": query}, headers=headers, timeout=3.0)
             if r.status_code != 200:
                 return []
-                
+
             soup = BeautifulSoup(r.text, "html.parser")
             links = []
             for a in soup.find_all("a", href=True):
-                href = a["href"]
+                href = a.get("href", "")
                 if "uddg=" in href:
                     try:
                         parts = href.split("uddg=")
@@ -480,7 +480,6 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
 
             return links if links else results
     except Exception as e:
-        logger.warning(f"DDG Lite search failed for query '{query}': {e}")
         return []
 
 async def find_email_for_company(company_name: str, location: str, phone_number: str = "") -> Tuple[Optional[str], Optional[str], Optional[str]]:
@@ -511,7 +510,6 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
 
     from app.services import automation_worker
     
-    # 2. Deep scrape direct social links first
     if facebook_url:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
         clean_fb = facebook_url.split('?')[0].rstrip('/')
@@ -546,32 +544,21 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
                 logger.info(f"Agent: Scraped email '{emails[0]}' from LinkedIn profile.")
                 return emails[0], None, "LinkedIn"
 
-    # Direct Search Snippet Crawler Fallback
     if getattr(automation_worker, "cancel_requested", False): return None, None, None
-    logger.info("Agent: Email not found on profiles. Executing fast snippet query...")
-    search_variants = [
-        f'"{clean_name}" "{location}" email',
-        f'"{clean_name}" {location} @gmail.com',
-        f'"{clean_name}" {location} @yahoo.com',
-    ]
-    
-    for direct_query in search_variants:
-        if getattr(automation_worker, "cancel_requested", False): return None, None, None
-        snippets = await ddg_lite_search(direct_query, extract_snippets=True)
-        for snippet in snippets:
-            matches = EMAIL_REGEX.findall(snippet)
-            emails = [m.lower() for m in matches if is_valid_email(m)]
-            if emails:
-                logger.info(f"Agent: Scraped email '{emails[0]}' directly from DDG snippet for query '{direct_query}'.")
-                return emails[0], None, "Direct Search"
+    direct_query = f'"{clean_name}" "{location}" email'
+    snippets = await ddg_lite_search(direct_query, extract_snippets=True)
+    for snippet in snippets:
+        matches = EMAIL_REGEX.findall(snippet)
+        emails = [m.lower() for m in matches if is_valid_email(m)]
+        if emails:
+            logger.info(f"Agent: Scraped email '{emails[0]}' directly from DDG snippet for query '{direct_query}'.")
+            return emails[0], None, "Direct Search"
 
-    # Brahmastra 3: Reverse Phone Number Mapping query
     if phone_number:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
         try:
             clean_phone = re.sub(r'[^\d+]', '', phone_number)
             if len(clean_phone) >= 7:
-                logger.info(f"Agent: Executing Reverse Phone Mapping query for '{phone_number}'...")
                 phone_query = f'"{phone_number}" email'
                 snippets = await ddg_lite_search(phone_query, extract_snippets=True)
                 for snippet in snippets:
@@ -580,7 +567,7 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
                     if emails:
                         logger.info(f"Agent: Scraped email '{emails[0]}' via Reverse Phone mapping on DDG.")
                         return emails[0], None, "Reverse Phone Search"
-        except Exception as e:
-            logger.warning(f"Reverse Phone mapping query failed: {e}")
+        except Exception:
+            pass
 
     return None, None, None

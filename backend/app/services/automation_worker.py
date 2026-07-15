@@ -134,9 +134,9 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
     """
     global automation_progress, cancel_requested
     
-    if cancel_requested:
-        log_progress("Autopilot: Cycle aborted due to cancel request.")
-        return {"status": "skipped", "reason": "cancelled"}
+    # Always reset the cancel flag at the start of a new cycle
+    # A previous cancellation should not block future runs
+    cancel_requested = False
         
     log_progress("Autopilot: Initializing automated outreach cycle...")
     

@@ -485,8 +485,10 @@ async def run_mailer_cycle(db) -> Dict[str, Any]:
 async def run_mailer_scheduler():
     """
     Runs continuously, picking up pending emails and sending them with a 3-4 min jitter delay.
+    Strictly runs only between 9 AM and 5 PM IST (Asia/Kolkata).
     """
     import random
+    from zoneinfo import ZoneInfo
     logger.info("Autopilot Mailer: Background loop started.")
     await asyncio.sleep(20)
     
@@ -497,6 +499,16 @@ async def run_mailer_scheduler():
         try:
             if cancel_requested:
                 await asyncio.sleep(5)
+                continue
+
+            # Check working hours constraint (9 AM - 5 PM IST)
+            ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
+            current_hour = ist_now.hour
+            
+            if current_hour < 9 or current_hour >= 17:
+                log_progress(f"Autopilot Mailer: Current time ({ist_now.strftime('%H:%M:%S')} IST) is outside working hours (9 AM - 5 PM). Pausing mailer.")
+                # Sleep for 15 minutes before checking time again
+                await asyncio.sleep(900)
                 continue
 
             repo = AutomationRepository(db)
@@ -528,7 +540,9 @@ async def run_mailer_scheduler():
 async def run_scraper_scheduler():
     """
     Runs the scraper periodically to keep the queue filled.
+    Strictly runs only between 9 AM and 5 PM IST (Asia/Kolkata).
     """
+    from zoneinfo import ZoneInfo
     logger.info("Autopilot Scraper: Background loop started.")
     await asyncio.sleep(15)
     
@@ -537,6 +551,15 @@ async def run_scraper_scheduler():
     
     while True:
         try:
+            # Check working hours constraint (9 AM - 5 PM IST)
+            ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
+            current_hour = ist_now.hour
+            
+            if current_hour < 9 or current_hour >= 17:
+                # Sleep for 15 minutes before checking time again
+                await asyncio.sleep(900)
+                continue
+
             repo = AutomationRepository(db)
             config = await repo.get_settings()
             if config.get("enabled", False):

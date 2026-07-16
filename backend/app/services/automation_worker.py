@@ -333,15 +333,18 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 return 0
 
             # SMTP Verification Check
-            is_valid, verification_reason = await verify_email_existence(email)
-            if not is_valid:
-                log_progress(f"Autopilot: Email '{email}' is unverified. Reason: {verification_reason} (skipped).")
-                await repo.create_record({
-                    "company_name": name, "email": email, "category": category, "location": location,
-                    "subject": None, "body": None, "status": "Unverified", "error_message": verification_reason,
-                    "email_source": email_source
-                })
-                return 0
+            # Skip full SMTP check for Domain Email Guesses — SMTP port 25 is blocked on Render.
+            # MX verification was already done in the guess step above, so we trust those emails.
+            if email_source != "Domain Email Guess":
+                is_valid, verification_reason = await verify_email_existence(email)
+                if not is_valid:
+                    log_progress(f"Autopilot: Email '{email}' is unverified. Reason: {verification_reason} (skipped).")
+                    await repo.create_record({
+                        "company_name": name, "email": email, "category": category, "location": location,
+                        "subject": None, "body": None, "status": "Unverified", "error_message": verification_reason,
+                        "email_source": email_source
+                    })
+                    return 0
 
             # Resolve Smart Greeting Name via AI
             greeting_name = await clean_first_name_with_ai(email, name, custom_api_key=current_settings.get("openrouter_api_key"))

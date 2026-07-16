@@ -348,8 +348,27 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
 
             # Resolve Smart Greeting Name via AI
             greeting_name = await clean_first_name_with_ai(email, name, custom_api_key=current_settings.get("openrouter_api_key"))
+            
+            # SMART FALLBACK: If AI fails, determine a professional greeting
             if not greeting_name:
-                greeting_name = name.split()[0] if name else "Team"
+                email_prefix = email.split("@")[0].lower()
+                generic_prefixes = ["info", "contact", "support", "admin", "sales", "hello", "team", "mail", "office", "marketing"]
+                
+                # Check if email prefix looks like a personal first name (not generic, length > 2, only letters)
+                if not any(g in email_prefix for g in generic_prefixes) and len(email_prefix) > 2 and email_prefix.isalpha():
+                    greeting_name = email_prefix.capitalize()
+                else:
+                    # Clean company name (don't use single character words like 'A')
+                    words = (name or "").split()
+                    if words:
+                        first_word = words[0]
+                        # If first word is just a single letter (like 'A' or 'J'), use full name + " Team"
+                        if len(first_word) <= 2 or not first_word.isalpha():
+                            greeting_name = f"{name} Team"
+                        else:
+                            greeting_name = f"{first_word} Team"
+                    else:
+                        greeting_name = "Team"
 
             if is_redesign:
                 subject_tmpl = current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"

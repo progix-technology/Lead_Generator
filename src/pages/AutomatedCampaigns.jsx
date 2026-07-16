@@ -21,6 +21,8 @@ export default function AutomatedCampaigns() {
   const [batchEmailLimit, setBatchEmailLimit] = useState(5);
   const [newCategory, setNewCategory] = useState('');
   const [newLocation, setNewLocation] = useState('');
+  const [showCategories, setShowCategories] = useState(false);
+  const [showLocations, setShowLocations] = useState(false);
 
   const [records, setRecords] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
@@ -747,78 +749,100 @@ export default function AutomatedCampaigns() {
             <span className="text-xs text-gray-400">Target config.</span>
           </div>
 
-          {/* Category Input & Chips */}
-          <div className="space-y-3">
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Target Categories ({categories.length})</label>
-            <form onSubmit={handleAddCategory} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="e.g. Beauty Products, Plumbers, Grocery Stores"
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-850 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-              />
-              <Button type="submit" variant="secondary" className="text-xs px-3 py-1.5 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer">Add</Button>
-            </form>
-
-            <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 border border-gray-200 rounded-xl min-h-[90px] align-content-start">
-              {categories.length === 0 ? (
-                <span className="text-[11px] text-gray-400 italic m-auto text-center">No categories. All categories will rotate.</span>
-              ) : (
-                categories.map((cat) => (
-                  <span
-                    key={cat}
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 rounded-full px-2.5 py-0.5"
-                  >
-                    {cat}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveCategory(cat)}
-                      className="hover:text-blue-900 font-bold ml-0.5 text-[9px] text-blue-400 cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))
-              )}
+          {/* Category Input & Chips (Collapsible Dropdown with Scrollbar) */}
+          <div className="border-b border-gray-100 pb-2">
+            <div 
+              className="flex items-center justify-between cursor-pointer py-1.5 select-none hover:bg-gray-50 px-1 rounded transition-colors" 
+              onClick={() => setShowCategories(!showCategories)}
+            >
+              <label className="text-xs font-bold text-gray-700 uppercase tracking-wider cursor-pointer">Target Categories ({categories.length})</label>
+              <span className="text-xs text-gray-400 font-bold">{showCategories ? '▼' : '▶'}</span>
             </div>
+            
+            {showCategories && (
+              <div className="space-y-3 mt-2">
+                <form onSubmit={handleAddCategory} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. Beauty Products, Plumbers, Grocery Stores"
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-850 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                  />
+                  <Button type="submit" variant="secondary" className="text-xs px-3 py-1.5 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer">Add</Button>
+                </form>
+
+                <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 border border-gray-200 rounded-xl max-h-[140px] overflow-y-auto align-content-start">
+                  {categories.length === 0 ? (
+                    <span className="text-[11px] text-gray-400 italic m-auto text-center">No categories. All categories will rotate.</span>
+                  ) : (
+                    categories.map((cat) => (
+                      <span
+                        key={cat}
+                        className="inline-flex items-center gap-1 text-[10px] font-semibold bg-blue-50 text-blue-800 border border-blue-200 rounded-full px-2.5 py-0.5"
+                      >
+                        {cat}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveCategory(cat)}
+                          className="hover:text-blue-900 font-bold ml-0.5 text-[9px] text-blue-400 cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Location Input & Chips */}
-          <div className="space-y-3">
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">Target Locations ({locations.length})</label>
-            <form onSubmit={handleAddLocation} className="flex gap-2">
-              <input
-                type="text"
-                placeholder="e.g. Kingsburg CA"
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-850 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                value={newLocation}
-                onChange={(e) => setNewLocation(e.target.value)}
-              />
-              <Button type="submit" variant="secondary" className="text-xs px-3 py-1.5 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer">Add</Button>
-            </form>
-
-            <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 border border-gray-200 rounded-xl min-h-[90px] align-content-start">
-              {locations.length === 0 ? (
-                <span className="text-[11px] text-gray-400 italic m-auto text-center">No locations. All locations will rotate.</span>
-              ) : (
-                locations.map((loc) => (
-                  <span
-                    key={loc}
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold bg-green-50 text-green-800 border border-green-200 rounded-full px-2.5 py-0.5"
-                  >
-                    {loc}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveLocation(loc)}
-                      className="hover:text-green-900 font-bold ml-0.5 text-[9px] text-green-400 cursor-pointer"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                ))
-              )}
+          {/* Location Input & Chips (Collapsible Dropdown with Scrollbar) */}
+          <div className="border-b border-gray-100 pb-2">
+            <div 
+              className="flex items-center justify-between cursor-pointer py-1.5 select-none hover:bg-gray-50 px-1 rounded transition-colors" 
+              onClick={() => setShowLocations(!showLocations)}
+            >
+              <label className="text-xs font-bold text-gray-700 uppercase tracking-wider cursor-pointer">Target Locations ({locations.length})</label>
+              <span className="text-xs text-gray-400 font-bold">{showLocations ? '▼' : '▶'}</span>
             </div>
+            
+            {showLocations && (
+              <div className="space-y-3 mt-2">
+                <form onSubmit={handleAddLocation} className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. Kingsburg CA"
+                    className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs text-gray-850 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    value={newLocation}
+                    onChange={(e) => setNewLocation(e.target.value)}
+                  />
+                  <Button type="submit" variant="secondary" className="text-xs px-3 py-1.5 border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 cursor-pointer">Add</Button>
+                </form>
+
+                <div className="flex flex-wrap gap-1.5 p-2 bg-gray-50 border border-gray-200 rounded-xl max-h-[140px] overflow-y-auto align-content-start">
+                  {locations.length === 0 ? (
+                    <span className="text-[11px] text-gray-400 italic m-auto text-center">No locations. All locations will rotate.</span>
+                  ) : (
+                    locations.map((loc) => (
+                      <span
+                        key={loc}
+                        className="inline-flex items-center gap-1 text-[10px] font-semibold bg-green-50 text-green-800 border border-green-200 rounded-full px-2.5 py-0.5"
+                      >
+                        {loc}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveLocation(loc)}
+                          className="hover:text-green-900 font-bold ml-0.5 text-[9px] text-green-400 cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      </span>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Target Facebook Only Toggle */}

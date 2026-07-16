@@ -304,20 +304,20 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 return 0
 
             # LAST RESORT for redesign candidates: guess common email patterns from domain
+            # Use MX-only check (not SMTP) because Render blocks outbound port 25
             if not email and is_redesign and website_url:
                 try:
                     from urllib.parse import urlparse
                     domain = urlparse(website_url).netloc.replace("www.", "")
                     if domain:
-                        import httpx as _httpx
                         guesses = [f"info@{domain}", f"contact@{domain}", f"hello@{domain}"]
-                        from app.services.email_verifier import verify_email_existence
+                        from app.services.email_verifier import verify_mx_only
                         for guess in guesses:
-                            is_valid_guess, _ = await verify_email_existence(guess)
+                            is_valid_guess, _ = await verify_mx_only(guess)
                             if is_valid_guess:
                                 email = guess
                                 email_source = "Domain Email Guess"
-                                log_progress(f"Autopilot: Guessed valid email '{email}' for redesign candidate '{name}'.")
+                                log_progress(f"Autopilot: Guessed valid email '{email}' for redesign candidate '{name}' (MX verified).")
                                 break
                 except Exception:
                     pass

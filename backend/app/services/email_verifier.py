@@ -52,6 +52,31 @@ def verify_email_existence_sync(email: str, from_email: str = "progixtechnology@
         # Do not auto-approve on connection failures; keep sender reputation safe.
         return False, "Unverified: SMTP connection blocked or server unreachable"
 
+
+def verify_mx_only_sync(email: str) -> Tuple[bool, str]:
+    """
+    Lightweight verification: only checks if domain has valid MX records.
+    Does NOT do SMTP handshake. Use this when SMTP port 25 is blocked (e.g. Render hosting).
+    Returns (is_valid, explanation_message).
+    """
+    if not email or "@" not in email:
+        return False, "Invalid email address format"
+    domain = email.split("@")[1]
+    try:
+        records = dns.resolver.resolve(domain, 'MX')
+        if records:
+            return True, f"Domain '{domain}' has valid MX records (email server exists)"
+        return False, f"No MX records found for domain '{domain}'"
+    except Exception as e:
+        logger.warning(f"Could not resolve MX records for domain '{domain}': {e}")
+        return False, f"Domain has no valid mail servers (MX records missing)"
+
+
+async def verify_mx_only(email: str) -> Tuple[bool, str]:
+    """Async wrapper for MX-only email domain check (no SMTP handshake)."""
+    return await asyncio.to_thread(verify_mx_only_sync, email)
+
+
 async def verify_email_existence(email: str) -> Tuple[bool, str]:
     """
     Asynchronous SMTP verifier wrapper.

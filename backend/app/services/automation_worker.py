@@ -98,9 +98,7 @@ CATEGORIES = [
     "Preschools", "Private Schools", "Senior Care Services", "Assisted Living Facilities",
     "Restaurants", "Coffee Shops", "Bakeries", "Food Trucks",
     "Cafes", "Cloud Kitchens", "Pet Grooming", "Pet Boarding",
-    "IT Support Services", "Managed IT Services", "Cybersecurity Consultants", "Digital Marketing Agencies",
-    "SEO Agencies", "Web Design Agencies", "Software Development Companies", "Recruitment Agencies",
-    "Staffing Agencies", "Printing Services", "Signage Companies", "Security Camera Installation",
+    "Printing Services", "Signage Companies", "Security Camera Installation",
     "Beauty Products", "Cosmetics Stores", "Skincare Brands", "Soap and Lotion Brands", "Grocery Stores", "Supermarkets"
 ]
 LOCATIONS = [

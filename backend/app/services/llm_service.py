@@ -187,6 +187,7 @@ def generate_ai_search_query_sync(recent_targets: list, custom_api_key: Optional
        - EASY VOLUME CLIENTS (Often run without websites): Locksmiths, Towing Services, Junk Removal, Tree Services, Appliance Repair, Drywall Contractors, Concrete Contractors, Fence Contractors, Painting Contractors, Window Cleaning, Carpet Cleaning.
     2. Select smaller or mid-sized US cities, towns, or outer suburbs (population 30k - 150k) in states like TX, FL, NC, OH, GA, MI, PA, etc. 
        - Smaller towns and rural-suburban hubs have much lower website adoption than major metropolitan or tech-heavy cities.
+    3. STRICT RULE: You MUST NOT recommend any technology, IT services, SEO, digital marketing, software development, web design, or tech consulting categories. We only target brick-and-mortar local businesses, contractors, medical, or lifestyle niches.
     
     The output MUST be a JSON object containing:
     1. "category": "Category Name"

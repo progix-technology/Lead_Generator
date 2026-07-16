@@ -301,41 +301,31 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 log_progress(f"Autopilot: Lead '{name}' has a discovered website: '{discovered_web}' (skipped)")
                 return 0
 
-            # LAST RESORT for redesign candidates: guess common email patterns from domain
-            # Use MX-only check (not SMTP) because Render blocks outbound port 25
-            if not email and is_redesign and website_url:
-                try:
-                    from urllib.parse import urlparse
-                    domain = urlparse(website_url).netloc.replace("www.", "")
-                    if domain:
-                        guesses = [f"info@{domain}", f"contact@{domain}", f"hello@{domain}"]
-                        from app.services.email_verifier import verify_mx_only
-                        for guess in guesses:
-                            is_valid_guess, _ = await verify_mx_only(guess)
-                            if is_valid_guess:
-                                email = guess
-                                email_source = "Domain Email Guess"
-                                log_progress(f"Autopilot: Guessed valid email '{email}' for redesign candidate '{name}' (MX verified).")
-                                break
-                except Exception:
-                    pass
-
             facebook_only = current_settings.get("facebook_only", False)
             if not email:
                 log_progress(f"Autopilot: No contact emails discovered for '{name}'.")
                 return 0
                 
-            allowed_sources = ["Facebook"] if facebook_only else ["Facebook", "Instagram", "LinkedIn", "Website Contact Page", "Direct Search", "Reverse Phone Search", "Domain Email Guess"]
+            allowed_sources = ["Facebook"] if facebook_only else ["Facebook", "Instagram", "LinkedIn", "Website Contact Page", "Direct Search", "Reverse Phone Search"]
             if email_source not in allowed_sources:
                 log_progress(f"Autopilot: Email '{email}' found for '{name}' via '{email_source}' (skipped - source must be in {allowed_sources})")
                 return 0
 
             # SMTP Verification Check
-            # Skip full SMTP check for Domain Email Guesses — SMTP port 25 is blocked on Render.
-            # MX verification was already done in the guess step above, so we trust those emails.
-            if email_source != "Domain Email Guess":
-                is_valid, verification_reason = await verify_email_existence(email)
-                if not is_valid:
+            # If SMTP check fails due to blocked Port 25 (e.g. Render network unreachable),
+            # we check if the domain has valid MX records. Since the email was actually scraped, 
+            # we trust it if the domain has a mail server.
+            is_valid, verification_reason = await verify_email_existence(email)
+            if not is_valid:
+                if "SMTP connection blocked" in verification_reason or "server unreachable" in verification_reason:
+                    from app.services.email_verifier import verify_mx_only
+                    mx_valid, mx_reason = await verify_mx_only(email)
+                    if mx_valid:
+                        log_progress(f"Autopilot: Email '{email}' verified via MX backup because SMTP port 25 is blocked on hosting server.")
+                    else:
+                        log_progress(f"Autopilot: Email '{email}' discarded. MX backup failed: {mx_reason}")
+                        return 0
+                else:
                     log_progress(f"Autopilot: Email '{email}' is unverified. Reason: {verification_reason} (skipped).")
                     await repo.create_record({
                         "company_name": name, "email": email, "category": category, "location": location,

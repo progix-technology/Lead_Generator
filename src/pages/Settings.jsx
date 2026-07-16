@@ -17,6 +17,13 @@ export default function Settings() {
   const [smtpEmail, setSmtpEmail] = useState('');
   const [smtpPassword, setSmtpPassword] = useState('');
   
+  // API provider options
+  const [emailServiceProvider, setEmailServiceProvider] = useState('SMTP');
+  const [resendApiKey, setResendApiKey] = useState('');
+  const [sendgridApiKey, setSendgridApiKey] = useState('');
+  const [sendgridSender, setSendgridSender] = useState('');
+
+  
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -56,6 +63,10 @@ export default function Settings() {
       setSmtpPort(String(settings.smtp_port || '587'));
       setSmtpEmail(settings.smtp_email || '');
       setSmtpPassword(settings.smtp_password || '');
+      setEmailServiceProvider(settings.email_service_provider || 'SMTP');
+      setResendApiKey(settings.resend_api_key || '');
+      setSendgridApiKey(settings.sendgrid_api_key || '');
+      setSendgridSender(settings.sendgrid_sender || '');
     } catch (err) {
       console.error(err);
       setError('Failed to fetch settings from server.');
@@ -75,7 +86,11 @@ export default function Settings() {
         smtp_host: smtpHost,
         smtp_port: parseInt(smtpPort) || 587,
         smtp_email: smtpEmail,
-        smtp_password: smtpPassword
+        smtp_password: smtpPassword,
+        email_service_provider: emailServiceProvider,
+        resend_api_key: resendApiKey,
+        sendgrid_api_key: sendgridApiKey,
+        sendgrid_sender: sendgridSender
       });
       setSuccess('Settings saved successfully! Autopilot will now use these credentials.');
       setTimeout(() => setSuccess(''), 4000);
@@ -183,39 +198,105 @@ export default function Settings() {
           </div>
 
           <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider border-b border-gray-100 pb-3 pt-4 flex items-center gap-1.5">
-            <FiMail className="text-blue-500" /> SMTP Configuration
+            <FiMail className="text-blue-500" /> Outbound Emailing Configuration
           </h3>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input 
-              label="SMTP Host" 
-              placeholder="e.g. smtp.gmail.com" 
-              value={smtpHost}
-              onChange={(e) => setSmtpHost(e.target.value)}
-            />
-            <Input 
-              label="SMTP Port" 
-              placeholder="e.g. 587" 
-              value={smtpPort}
-              onChange={(e) => setSmtpPort(e.target.value)}
-            />
-            <Input 
-              label="SMTP Username (Email Address)" 
-              placeholder="e.g. your-email@gmail.com" 
-              value={smtpEmail}
-              onChange={(e) => setSmtpEmail(e.target.value)}
-            />
-            <Input 
-              label="SMTP Password / App Password" 
-              type="password" 
-              placeholder="Enter password or Gmail App Password" 
-              value={smtpPassword}
-              onChange={(e) => setSmtpPassword(e.target.value)}
-            />
+          <div className="space-y-4">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-gray-600">Email Service Provider</label>
+              <select
+                className="w-full text-xs rounded-lg border border-gray-200 p-2.5 bg-white text-gray-800 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                value={emailServiceProvider}
+                onChange={(e) => setEmailServiceProvider(e.target.value)}
+              >
+                <option value="SMTP">SMTP Server (Gmail, Outlook, custom domains - blocked on Render Free tier)</option>
+                <option value="Resend">Resend API (HTTP-based - Recommended for Render Free tier)</option>
+                <option value="SendGrid">SendGrid API (HTTP-based - Alternative for Render Free tier)</option>
+              </select>
+            </div>
           </div>
-          <p className="text-[10px] text-gray-400 leading-normal">
-            For Gmail: Make sure 2-Step Verification is active and generate a 16-character <strong>App Password</strong> instead of your normal password to prevent security blocks.
-          </p>
+
+          {emailServiceProvider === 'SMTP' && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Input 
+                  label="SMTP Host" 
+                  placeholder="e.g. smtp.gmail.com" 
+                  value={smtpHost}
+                  onChange={(e) => setSmtpHost(e.target.value)}
+                />
+                <Input 
+                  label="SMTP Port" 
+                  placeholder="e.g. 587" 
+                  value={smtpPort}
+                  onChange={(e) => setSmtpPort(e.target.value)}
+                />
+                <Input 
+                  label="SMTP Username (Email Address)" 
+                  placeholder="e.g. your-email@gmail.com" 
+                  value={smtpEmail}
+                  onChange={(e) => setSmtpEmail(e.target.value)}
+                />
+                <Input 
+                  label="SMTP Password / App Password" 
+                  type="password" 
+                  placeholder="Enter password or Gmail App Password" 
+                  value={smtpPassword}
+                  onChange={(e) => setSmtpPassword(e.target.value)}
+                />
+              </div>
+              <p className="text-[10px] text-gray-400 leading-normal">
+                For Gmail: Make sure 2-Step Verification is active and generate a 16-character <strong>App Password</strong> instead of your normal password to prevent security blocks.
+              </p>
+            </>
+          )}
+
+          {emailServiceProvider === 'Resend' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Input 
+                  label="Resend API Key" 
+                  type="password" 
+                  placeholder="re_........................" 
+                  value={resendApiKey}
+                  onChange={(e) => setResendApiKey(e.target.value)}
+                />
+                <Input 
+                  label="Sender Email Address (Must be verified in Resend)" 
+                  placeholder="e.g. info@yourdomain.com (or onboarding@resend.dev for test account)" 
+                  value={smtpEmail}
+                  onChange={(e) => setSmtpEmail(e.target.value)}
+                />
+              </div>
+              <p className="text-[10px] text-gray-400 leading-normal">
+                Create a free account at <a href="https://resend.com" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">resend.com</a> to get an API Key. Resend allows 3,000 free emails/month. If using a custom domain, configure it under Domains in your Resend Dashboard.
+              </p>
+            </div>
+          )}
+
+          {emailServiceProvider === 'SendGrid' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Input 
+                  label="SendGrid API Key" 
+                  type="password" 
+                  placeholder="SG........................." 
+                  value={sendgridApiKey}
+                  onChange={(e) => setSendgridApiKey(e.target.value)}
+                />
+                <Input 
+                  label="SendGrid Verified Sender Email" 
+                  placeholder="e.g. outreach@yourcompany.com" 
+                  value={sendgridSender}
+                  onChange={(e) => setSendgridSender(e.target.value)}
+                />
+              </div>
+              <p className="text-[10px] text-gray-400 leading-normal">
+                To send emails via SendGrid, configure Single Sender Verification or Domain Authentication in your SendGrid settings, and enter the verified sender email address here.
+              </p>
+            </div>
+          )}
+
 
           <div className="pt-4 flex justify-end border-t border-gray-100">
             <Button 

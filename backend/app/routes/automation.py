@@ -30,6 +30,10 @@ class AutomationSettingsUpdate(BaseModel):
     smtp_email: Optional[str] = None
     smtp_password: Optional[str] = None
     openrouter_api_key: Optional[str] = None
+    email_service_provider: Optional[str] = None
+    resend_api_key: Optional[str] = None
+    sendgrid_api_key: Optional[str] = None
+    sendgrid_sender: Optional[str] = None
 
 @router.get("/settings", response_model=Dict[str, Any])
 async def get_settings(

@@ -61,6 +61,103 @@ def send_smtp_email_sync(to_email: str, subject: str, html_content: str, smtp_co
 
 async def send_smtp_email(to_email: str, subject: str, html_content: str, smtp_config: Optional[dict] = None) -> bool:
     """
-    Asynchronous SMTP email sending (runs sync SMTP in a separate thread).
+    Unified entry point for sending emails.
+    Supports SMTP, Resend API (HTTP), and SendGrid API (HTTP).
     """
-    return await asyncio.to_thread(send_smtp_email_sync, to_email, subject, html_content, smtp_config)
+    config = smtp_config or {}
+    provider = config.get("email_service_provider") or "SMTP"
+    
+    if provider == "Resend":
+        return await send_resend_email(to_email, subject, html_content, config)
+    elif provider == "SendGrid":
+        return await send_sendgrid_email(to_email, subject, html_content, config)
+    else:
+        # Standard SMTP Fallback
+        return await asyncio.to_thread(send_smtp_email_sync, to_email, subject, html_content, smtp_config)
+
+async def send_resend_email(to_email: str, subject: str, html_content: str, config: dict) -> bool:
+    import httpx
+    api_key = config.get("resend_api_key")
+    from_email = config.get("smtp_email") or "onboarding@resend.dev"
+    
+    if not api_key:
+        logger.error("Resend API Key is missing in settings.")
+        raise Exception("Resend API Key is missing")
+        
+    url = "https://api.resend.com/emails"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "from": from_email,
+        "to": [to_email],
+        "subject": subject,
+        "html": html_content
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(url, json=payload, headers=headers)
+            if r.status_code in [200, 201, 202]:
+                logger.info(f"Resend: Email successfully sent to {to_email}")
+                return True
+            else:
+                logger.error(f"Resend API failed: Status {r.status_code} - {r.text}")
+                raise Exception(f"Resend API failed (HTTP {r.status_code}): {r.text}")
+    except Exception as e:
+        logger.error(f"Resend exception when sending to {to_email}: {e}")
+        raise e
+
+async def send_sendgrid_email(to_email: str, subject: str, html_content: str, config: dict) -> bool:
+    import httpx
+    api_key = config.get("sendgrid_api_key")
+    sender_email = config.get("sendgrid_sender") or config.get("smtp_email")
+    
+    if not api_key:
+        logger.error("SendGrid API Key is missing in settings.")
+        raise Exception("SendGrid API Key is missing")
+    if not sender_email:
+        logger.error("SendGrid verified sender email is missing in settings.")
+        raise Exception("SendGrid verified sender email is missing")
+        
+    url = "https://api.sendgrid.com/v3/mail/send"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "personalizations": [
+            {
+                "to": [
+                    {
+                        "email": to_email
+                    }
+                ]
+            }
+        ],
+        "from": {
+            "email": sender_email
+        },
+        "subject": subject,
+        "content": [
+            {
+                "type": "text/html",
+                "value": html_content
+            }
+        ]
+    }
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.post(url, json=payload, headers=headers)
+            if r.status_code in [200, 201, 202]:
+                logger.info(f"SendGrid: Email successfully sent to {to_email}")
+                return True
+            else:
+                logger.error(f"SendGrid API failed: Status {r.status_code} - {r.text}")
+                raise Exception(f"SendGrid API failed (HTTP {r.status_code}): {r.text}")
+    except Exception as e:
+        logger.error(f"SendGrid exception when sending to {to_email}: {e}")
+        raise e
+

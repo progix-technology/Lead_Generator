@@ -215,6 +215,22 @@ class AutomationRepository:
                 doc["openrouter_api_key"] = ""
                 update_data["openrouter_api_key"] = ""
                 needs_update = True
+            if "email_service_provider" not in doc:
+                doc["email_service_provider"] = "SMTP"
+                update_data["email_service_provider"] = "SMTP"
+                needs_update = True
+            if "resend_api_key" not in doc:
+                doc["resend_api_key"] = ""
+                update_data["resend_api_key"] = ""
+                needs_update = True
+            if "sendgrid_api_key" not in doc:
+                doc["sendgrid_api_key"] = ""
+                update_data["sendgrid_api_key"] = ""
+                needs_update = True
+            if "sendgrid_sender" not in doc:
+                doc["sendgrid_sender"] = ""
+                update_data["sendgrid_sender"] = ""
+                needs_update = True
             if "enable_redesign" not in doc:
                 doc["enable_redesign"] = True
                 update_data["enable_redesign"] = True

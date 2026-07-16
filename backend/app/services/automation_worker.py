@@ -272,16 +272,29 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
 
         facebook_only = current_settings.get("facebook_only", False)
 
-        if website_url and not facebook_only:
+        # For REDESIGN candidates: they have a website, so always try scraping it first for contact email
+        # regardless of facebook_only setting — the website IS the product we want to redesign
+        if website_url and is_redesign:
             try:
                 website_email, website_email_page = await find_email_from_company_website(website_url)
                 if website_email:
                     email = website_email
                     email_source = "Website Contact Page"
-            except Exception as website_scan_err:
+                    log_progress(f"Autopilot: Found email for redesign candidate '{name}' via website contact page.")
+            except Exception:
                 pass
 
-        # Deep crawl emails if not found on website (or if we are strictly searching Facebook)
+        # For NON-redesign leads (no website): try website page only if facebook_only is OFF
+        elif website_url and not facebook_only:
+            try:
+                website_email, website_email_page = await find_email_from_company_website(website_url)
+                if website_email:
+                    email = website_email
+                    email_source = "Website Contact Page"
+            except Exception:
+                pass
+
+        # Deep crawl social profiles if still no email found
         try:
             if not email:
                 email, discovered_web, email_source = await find_email_for_company(name, location, company.get("phone_number", ""))
@@ -290,12 +303,31 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 log_progress(f"Autopilot: Lead '{name}' has a discovered website: '{discovered_web}' (skipped)")
                 return 0
 
+            # LAST RESORT for redesign candidates: guess common email patterns from domain
+            if not email and is_redesign and website_url:
+                try:
+                    from urllib.parse import urlparse
+                    domain = urlparse(website_url).netloc.replace("www.", "")
+                    if domain:
+                        import httpx as _httpx
+                        guesses = [f"info@{domain}", f"contact@{domain}", f"hello@{domain}"]
+                        from app.services.email_verifier import verify_email_existence
+                        for guess in guesses:
+                            is_valid_guess, _ = await verify_email_existence(guess)
+                            if is_valid_guess:
+                                email = guess
+                                email_source = "Domain Email Guess"
+                                log_progress(f"Autopilot: Guessed valid email '{email}' for redesign candidate '{name}'.")
+                                break
+                except Exception:
+                    pass
+
             facebook_only = current_settings.get("facebook_only", False)
             if not email:
                 log_progress(f"Autopilot: No contact emails discovered for '{name}'.")
                 return 0
                 
-            allowed_sources = ["Facebook"] if facebook_only else ["Facebook", "Instagram", "LinkedIn", "Website Contact Page", "Direct Search", "Reverse Phone Search"]
+            allowed_sources = ["Facebook"] if facebook_only else ["Facebook", "Instagram", "LinkedIn", "Website Contact Page", "Direct Search", "Reverse Phone Search", "Domain Email Guess"]
             if email_source not in allowed_sources:
                 log_progress(f"Autopilot: Email '{email}' found for '{name}' via '{email_source}' (skipped - source must be in {allowed_sources})")
                 return 0

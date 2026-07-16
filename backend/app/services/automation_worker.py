@@ -480,7 +480,6 @@ async def run_mailer_cycle(db) -> Dict[str, Any]:
     if has_custom_site and not is_redesign:
         log_progress(f"Autopilot Mailer: Discarding stale record for '{name}' (website present but not a redesign candidate). Removing from queue.")
         await repo.records_col.delete_one({"_id": record["_id"] if "_id" in record else None} if "_id" in record else {"id": record.get("id")})
-        from bson import ObjectId
         await repo.records_col.delete_one({"_id": ObjectId(record["id"])})
         return {"status": "skipped", "reason": "stale_non_redesign_record"}
     

@@ -402,6 +402,7 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
         async with httpx.AsyncClient(verify=False, timeout=3.0) as client:
             r = await client.post(url, data={"q": query}, headers=headers, timeout=3.0)
             if r.status_code != 200:
+                logger.warning(f"DDG Lite search failed for query '{query}': HTTP {r.status_code}")
                 return []
 
             soup = BeautifulSoup(r.text, "html.parser")
@@ -429,6 +430,7 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
 
             return links if links else results
     except Exception as e:
+        logger.warning(f"Error in ddg_lite_search for query '{query}': {e}")
         return []
 
 async def ddg_lite_search_fanout(queries: List[str], extract_snippets: bool = False, max_results: int = 5) -> List[str]:

@@ -25,7 +25,7 @@ export default function AutomatedCampaigns() {
   const [records, setRecords] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [todayCount, setTodayCount] = useState(0);
-  const [queueMetrics, setQueueMetrics] = useState({ pending_count: 0, sent_today: 0 });
+  const [queueMetrics, setQueueMetrics] = useState({ pending_count: 0, pending_standard_count: 0, pending_redesign_count: 0, sent_today: 0 });
 
   const [loading, setLoading] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
@@ -437,16 +437,27 @@ export default function AutomatedCampaigns() {
       )}
 
       {/* Live Queue Counter Dashboard */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
-        <Card className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-100 flex flex-col justify-center items-center py-6 shadow-sm">
-          <div className="text-sm font-bold text-indigo-800 uppercase tracking-wider mb-2">Total Leads Scraped (Pending Queue)</div>
-          <div className="text-5xl font-black text-indigo-600 drop-shadow-sm">{queueMetrics.pending_count}</div>
-          <div className="text-xs text-indigo-500 font-medium mt-2">Waiting for safe mailer dispatch</div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-2">
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 flex flex-col justify-center items-center py-6 shadow-sm">
+          <div className="text-xs font-bold text-blue-800 uppercase tracking-wider mb-2 text-center">Website Creation Queue (No Website)</div>
+          <div className="text-4xl font-black text-blue-600 drop-shadow-sm">{queueMetrics.pending_standard_count || 0}</div>
+          <div className="text-[10px] text-blue-500 font-medium mt-2">Pitches ready to send automatically</div>
+        </Card>
+        <Card className="bg-gradient-to-br from-purple-50 to-fuchsia-50 border border-purple-100 flex flex-col justify-center items-center py-6 shadow-sm">
+          <div className="text-xs font-bold text-purple-800 uppercase tracking-wider mb-2 text-center">Redesign Campaign Queue</div>
+          <div className="text-4xl font-black text-purple-600 drop-shadow-sm">{queueMetrics.pending_redesign_count || 0}</div>
+          <div className="text-[10px] text-purple-500 font-medium mt-2">
+            {enableRedesign 
+              ? "🟢 Active - sending smoothly" 
+              : "⏸️ Paused (Turn ON toggle to send)"}
+          </div>
         </Card>
         <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-100 flex flex-col justify-center items-center py-6 shadow-sm">
-          <div className="text-sm font-bold text-emerald-800 uppercase tracking-wider mb-2">Emails Successfully Sent (Today)</div>
-          <div className="text-5xl font-black text-emerald-600 drop-shadow-sm">{queueMetrics.sent_today} <span className="text-2xl text-emerald-400">/ {dailyEmailLimit}</span></div>
-          <div className="text-xs text-emerald-500 font-medium mt-2">Sent smoothly without hitting spam limits</div>
+          <div className="text-xs font-bold text-emerald-800 uppercase tracking-wider mb-2 text-center">Emails Successfully Sent (Today)</div>
+          <div className="text-4xl font-black text-emerald-600 drop-shadow-sm">
+            {queueMetrics.sent_today} <span className="text-xl text-emerald-400">/ {dailyEmailLimit}</span>
+          </div>
+          <div className="text-[10px] text-emerald-500 font-medium mt-2">Outbox count today</div>
         </Card>
       </div>
 

@@ -265,12 +265,21 @@ class AutomationRepository:
         created = await self.records_col.find_one({"_id": result.inserted_id})
         return self._format_id(created)
 
-    async def get_pending_emails(self, limit: int = 10) -> List[Dict[str, Any]]:
-        cursor = self.records_col.find({"status": "Pending_Email"}).sort("created_at", 1).limit(limit)
+    async def get_pending_emails(self, limit: int = 10, exclude_redesign: bool = False) -> List[Dict[str, Any]]:
+        query = {"status": "Pending_Email"}
+        if exclude_redesign:
+            query["metadata.is_redesign"] = {"$ne": True}
+        cursor = self.records_col.find(query).sort("created_at", 1).limit(limit)
         return [self._format_id(doc) async for doc in cursor]
 
     async def count_pending_records(self) -> int:
         return await self.records_col.count_documents({"status": "Pending_Email"})
+        
+    async def count_pending_redesign_records(self) -> int:
+        return await self.records_col.count_documents({"status": "Pending_Email", "metadata.is_redesign": True})
+        
+    async def count_pending_standard_records(self) -> int:
+        return await self.records_col.count_documents({"status": "Pending_Email", "metadata.is_redesign": {"$ne": True}})
         
     async def update_record_status(self, record_id: str, status: str, error_message: str = None) -> None:
         update_data = {"status": status, "updated_at": datetime.utcnow()}

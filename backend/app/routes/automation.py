@@ -80,11 +80,14 @@ async def get_queue_status(
 ) -> Any:
     """Retrieve the real-time queue counts for the live dashboard."""
     pending_count = await repo.count_pending_records()
-    sent_today = await repo.count_records_today() # Which now counts 'Sent' status
-    total_sent = await repo.count_records() # Which counts all statuses, but we can just use the pending count
+    pending_standard_count = await repo.count_pending_standard_records()
+    pending_redesign_count = await repo.count_pending_redesign_records()
+    sent_today = await repo.count_records_today()
     
     return {
         "pending_count": pending_count,
+        "pending_standard_count": pending_standard_count,
+        "pending_redesign_count": pending_redesign_count,
         "sent_today": sent_today
     }
 

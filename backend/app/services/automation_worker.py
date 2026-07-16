@@ -230,14 +230,7 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         performance_score = 0
         suggestions = []
         
-        # Check if redesign campaigns are enabled
-        enable_redesign = current_settings.get("enable_redesign", True)
-
         if website_url and not is_directory_url(website_url):
-            if not enable_redesign:
-                log_progress(f"Autopilot: Skipping '{name}' because Redesign Campaigns are disabled and they already have a website.")
-                return 0
-
             from app.services.audit import perform_live_website_audit
             try:
                 audit_results = await perform_live_website_audit(website_url)
@@ -305,30 +298,26 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 email, discovered_web, email_source = await find_email_for_company(name, location, company.get("phone_number", ""))
             
             if discovered_web:
-                if not enable_redesign:
-                    log_progress(f"Autopilot: Lead '{name}' has a discovered website '{discovered_web}' (skipped because Redesign is disabled).")
-                    return 0
-                else:
-                    # Treat it as a redesign candidate and perform website audit dynamically
-                    from app.services.audit import perform_live_website_audit
-                    try:
-                        audit_results = await perform_live_website_audit(discovered_web)
-                        seo_score = audit_results["seo_score"]
-                        ui_score = audit_results["ui_score"]
-                        performance_score = audit_results["performance_score"]
-                        suggestions = audit_results["suggestions"]
-                        
-                        avg_score = (seo_score + ui_score + performance_score) / 3
-                        if avg_score < 60:
-                            is_redesign = True
-                            website_url = discovered_web
-                            log_progress(f"Autopilot: Lead '{name}' has a weak discovered website '{discovered_web}' (Score: {avg_score:.1f}/100 < 60). Queueing redesign outreach.")
-                        else:
-                            log_progress(f"Autopilot: Lead '{name}' has a healthy discovered website '{discovered_web}' (Score: {avg_score:.1f}/100 >= 60). Skipping lead.")
-                            return 0
-                    except Exception as audit_err:
-                        log_progress(f"Autopilot: Website audit unavailable for discovered website '{discovered_web}': {audit_err}. Skipping.")
+                # Treat it as a redesign candidate and perform website audit dynamically
+                from app.services.audit import perform_live_website_audit
+                try:
+                    audit_results = await perform_live_website_audit(discovered_web)
+                    seo_score = audit_results["seo_score"]
+                    ui_score = audit_results["ui_score"]
+                    performance_score = audit_results["performance_score"]
+                    suggestions = audit_results["suggestions"]
+                    
+                    avg_score = (seo_score + ui_score + performance_score) / 3
+                    if avg_score < 60:
+                        is_redesign = True
+                        website_url = discovered_web
+                        log_progress(f"Autopilot: Lead '{name}' has a weak discovered website '{discovered_web}' (Score: {avg_score:.1f}/100 < 60). Queueing redesign outreach.")
+                    else:
+                        log_progress(f"Autopilot: Lead '{name}' has a healthy discovered website '{discovered_web}' (Score: {avg_score:.1f}/100 >= 60). Skipping lead.")
                         return 0
+                except Exception as audit_err:
+                    log_progress(f"Autopilot: Website audit unavailable for discovered website '{discovered_web}': {audit_err}. Skipping.")
+                    return 0
 
             facebook_only = current_settings.get("facebook_only", False)
             if not email:
@@ -465,14 +454,14 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
     log_progress(f"Autopilot: Cycle complete. Scanned: {scanned_count} leads, Sent: {sent_count} emails.")
     return {"status": "completed", "sent_count": sent_count, "scanned_count": scanned_count}
 
-async def run_mailer_cycle(db) -> Dict[str, Any]:
+async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]:
     """
     Grabs one pending email from the database and sends it safely.
     Dynamically recompiles subject/body at send-time using current active templates.
     """
     import random
     repo = AutomationRepository(db)
-    pending = await repo.get_pending_emails(limit=1)
+    pending = await repo.get_pending_emails(limit=1, exclude_redesign=exclude_redesign)
     if not pending:
         return {"status": "skipped", "reason": "no_pending"}
 
@@ -612,9 +601,11 @@ async def run_mailer_scheduler():
                 # Count only sent emails for the daily limit
                 sent_today = await repo.count_records_today()
                 daily_limit = config.get("daily_email_limit", 20)
+                enable_redesign = config.get("enable_redesign", True)
+                exclude_redesign = not enable_redesign
                 
                 if sent_today < daily_limit:
-                    result = await run_mailer_cycle(db)
+                    result = await run_mailer_cycle(db, exclude_redesign=exclude_redesign)
                     if result.get("status") in ["sent", "failed"]:
                         delay = random.randint(180, 240)
                         log_progress(f"Autopilot Mailer: Sleeping for {delay} seconds (3-4 mins) before next send to protect SMTP reputation.")

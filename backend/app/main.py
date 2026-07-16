@@ -4,9 +4,19 @@ from contextlib import asynccontextmanager
 import logging
 import sys
 import asyncio
+import warnings
+import inspect
 
 if sys.platform == 'win32':
     asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
+# Silence noisy Python 3.14 deprecations from Motor/asyncio wrappers on Render.
+warnings.filterwarnings(
+    "ignore",
+    message=r"'asyncio\.iscoroutinefunction' is deprecated.*",
+    category=DeprecationWarning,
+    module=r"motor\.frameworks\.asyncio",
+)
 
 from app.config.settings import get_settings
 from app.database.connection import connect_to_mongo, close_mongo_connection

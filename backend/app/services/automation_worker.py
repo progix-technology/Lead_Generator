@@ -480,7 +480,29 @@ async def run_mailer_cycle(db) -> Dict[str, Any]:
     
     # Recompile templates dynamically (runs for both new metadata and older legacy queued emails)
     meta = record.get("metadata") or {}
-    first_name = meta.get("first_name") or name.split()[0] or "Team"
+    first_name_candidate = meta.get("first_name")
+    
+    # Clean greeting names (avoid single-letter names, and verify if it's just the first word of a long business name)
+    first_name = "Team"
+    if first_name_candidate and len(first_name_candidate) > 2 and first_name_candidate.lower() not in ["team", "there"]:
+        # If it was saved as a single cut word of a multi-word company name, turn it into [Company] Team
+        words = (name or "").split()
+        if len(words) > 1 and first_name_candidate == words[0]:
+            first_name = f"{name} Team"
+        else:
+            first_name = first_name_candidate
+    else:
+        # Fallback helper
+        words = (name or "").split()
+        if words:
+            first_word = words[0]
+            if len(first_word) <= 2 or not first_word.isalpha():
+                first_name = f"{name} Team"
+            else:
+                first_name = f"{first_word} Team"
+        else:
+            first_name = "Team"
+            
     website = meta.get("website") or "your business"
     
     # Strictly determine is_redesign

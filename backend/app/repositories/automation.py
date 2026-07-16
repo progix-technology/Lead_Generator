@@ -97,6 +97,7 @@ class AutomationRepository:
                 "categories": default_categories,
                 "locations": default_locations,
                 "facebook_only": False,
+                "enable_redesign": True,
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow()
             }
@@ -213,6 +214,10 @@ class AutomationRepository:
             if "openrouter_api_key" not in doc:
                 doc["openrouter_api_key"] = ""
                 update_data["openrouter_api_key"] = ""
+                needs_update = True
+            if "enable_redesign" not in doc:
+                doc["enable_redesign"] = True
+                update_data["enable_redesign"] = True
                 needs_update = True
             if "redesign_subject_template" not in doc:
                 doc["redesign_subject_template"] = default_redesign_subject

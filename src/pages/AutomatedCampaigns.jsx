@@ -16,6 +16,7 @@ export default function AutomatedCampaigns() {
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [facebookOnly, setFacebookOnly] = useState(false);
+  const [enableRedesign, setEnableRedesign] = useState(true);
   const [dailyEmailLimit, setDailyEmailLimit] = useState(20);
   const [batchEmailLimit, setBatchEmailLimit] = useState(5);
   const [newCategory, setNewCategory] = useState('');
@@ -146,6 +147,7 @@ export default function AutomatedCampaigns() {
       setCategories(settings.categories || []);
       setLocations(settings.locations || []);
       setFacebookOnly(!!settings.facebook_only);
+      setEnableRedesign(settings.enable_redesign !== false); // Default to true
       setDailyEmailLimit(settings.daily_email_limit || 20);
       setBatchEmailLimit(settings.batch_email_limit || 5);
 
@@ -217,6 +219,7 @@ export default function AutomatedCampaigns() {
         categories,
         locations,
         facebook_only: facebookOnly,
+        enable_redesign: enableRedesign,
         daily_email_limit: parseInt(dailyEmailLimit) || 20,
         batch_email_limit: parseInt(batchEmailLimit) || 5
       });
@@ -244,6 +247,7 @@ export default function AutomatedCampaigns() {
         categories,
         locations,
         facebook_only: facebookOnly,
+        enable_redesign: enableRedesign,
         daily_email_limit: parseInt(dailyEmailLimit) || 20,
         batch_email_limit: parseInt(batchEmailLimit) || 5
       });
@@ -822,6 +826,27 @@ export default function AutomatedCampaigns() {
                 className="sr-only peer"
                 checked={facebookOnly}
                 onChange={(e) => setFacebookOnly(e.target.checked)}
+              />
+              <div className="w-8 h-4.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          {/* Enable Redesign Campaigns Toggle */}
+          <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl">
+            <div className="flex flex-col pr-2">
+              <span className="text-[11px] font-bold text-gray-700 uppercase tracking-wider">Redesign Campaigns</span>
+              <span className="text-[9px] text-gray-400 mt-0.5 leading-normal">
+                {enableRedesign
+                  ? "Pitches website redesigns to companies with existing low-scoring websites."
+                  : "Skips redesigns. Targets only businesses with zero digital identity (no website)."}
+              </span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={enableRedesign}
+                onChange={(e) => setEnableRedesign(e.target.checked)}
               />
               <div className="w-8 h-4.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600"></div>
             </label>

@@ -22,6 +22,7 @@ class AutomationSettingsUpdate(BaseModel):
     categories: Optional[List[str]] = None
     locations: Optional[List[str]] = None
     facebook_only: Optional[bool] = None
+    enable_redesign: Optional[bool] = None
     daily_email_limit: Optional[int] = None
     batch_email_limit: Optional[int] = None
     smtp_host: Optional[str] = None

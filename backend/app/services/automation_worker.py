@@ -230,7 +230,14 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         performance_score = 0
         suggestions = []
         
+        # Check if redesign campaigns are enabled
+        enable_redesign = current_settings.get("enable_redesign", True)
+
         if website_url and not is_directory_url(website_url):
+            if not enable_redesign:
+                log_progress(f"Autopilot: Skipping '{name}' because Redesign Campaigns are disabled and they already have a website.")
+                return 0
+
             from app.services.audit import perform_live_website_audit
             try:
                 audit_results = await perform_live_website_audit(website_url)
@@ -298,8 +305,30 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 email, discovered_web, email_source = await find_email_for_company(name, location, company.get("phone_number", ""))
             
             if discovered_web:
-                log_progress(f"Autopilot: Lead '{name}' has a discovered website: '{discovered_web}' (skipped)")
-                return 0
+                if not enable_redesign:
+                    log_progress(f"Autopilot: Lead '{name}' has a discovered website '{discovered_web}' (skipped because Redesign is disabled).")
+                    return 0
+                else:
+                    # Treat it as a redesign candidate and perform website audit dynamically
+                    from app.services.audit import perform_live_website_audit
+                    try:
+                        audit_results = await perform_live_website_audit(discovered_web)
+                        seo_score = audit_results["seo_score"]
+                        ui_score = audit_results["ui_score"]
+                        performance_score = audit_results["performance_score"]
+                        suggestions = audit_results["suggestions"]
+                        
+                        avg_score = (seo_score + ui_score + performance_score) / 3
+                        if avg_score < 60:
+                            is_redesign = True
+                            website_url = discovered_web
+                            log_progress(f"Autopilot: Lead '{name}' has a weak discovered website '{discovered_web}' (Score: {avg_score:.1f}/100 < 60). Queueing redesign outreach.")
+                        else:
+                            log_progress(f"Autopilot: Lead '{name}' has a healthy discovered website '{discovered_web}' (Score: {avg_score:.1f}/100 >= 60). Skipping lead.")
+                            return 0
+                    except Exception as audit_err:
+                        log_progress(f"Autopilot: Website audit unavailable for discovered website '{discovered_web}': {audit_err}. Skipping.")
+                        return 0
 
             facebook_only = current_settings.get("facebook_only", False)
             if not email:

@@ -462,18 +462,38 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
     facebook_url = None
     instagram_url = None
     linkedin_url = None
+    discovered_web = None
 
     links = await ddg_lite_search(search_query)
     for link in links:
         if not link.startswith(('http://', 'https://')): continue
-        if any(domain in link for domain in ['yahoo.com', 'microsoft.com', 'google.com']): continue
+        link_lower = link.lower()
+        if any(domain in link_lower for domain in ['yahoo.com', 'microsoft.com', 'google.com']): continue
         
-        if 'facebook.com' in link and not facebook_url and '/public/' not in link and '/events/' not in link:
+        if 'facebook.com' in link_lower and not facebook_url and '/public/' not in link_lower and '/events/' not in link_lower:
             facebook_url = link
-        elif 'instagram.com' in link and not instagram_url and '/p/' not in link:
+        elif 'instagram.com' in link_lower and not instagram_url and '/p/' not in link_lower:
             instagram_url = link
-        elif 'linkedin.com' in link and not linkedin_url and ('/company/' in link or '/in/' in link):
+        elif 'linkedin.com' in link_lower and not linkedin_url and ('/company/' in link_lower or '/in/' in link_lower):
             linkedin_url = link
+        else:
+            # Check if this link is a custom business website (excluding directory/promotional sites)
+            ignore_domains = [
+                'facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'x.com',
+                'youtube.com', 'pinterest.com', 'tiktok.com', 'linktr.ee', 'google.com',
+                'yahoo.com', 'bing.com', 'duckduckgo.com', 'messenger.com', 'yelp.com',
+                'yellowpages.com', 'yp.com', 'foursquare.com', 'bbb.org', 'manta.com',
+                'tripadvisor.com', 'angi.com', 'houzz.com', 'chamberofcommerce.com', 'local.yahoo.com',
+                'mapquest.com', 'groupon.com', 'local.com', 'superpages.com', 'whitepages.com',
+                'wikipedia.org', 'craigslist.org', 'nextdoor.com', 'glassdoor.com', 'indeed.com',
+                'yellowbook.com', 'merchantcircle.com', 'citysearch.com', 'patch.com'
+            ]
+            if not discovered_web and not any(d in link_lower for d in ignore_domains):
+                try:
+                    parsed = urllib.parse.urlparse(link)
+                    discovered_web = f"{parsed.scheme}://{parsed.netloc}"
+                except Exception:
+                    pass
 
     from app.services import automation_worker
     
@@ -487,7 +507,7 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
             emails = await scrape_url_for_emails(None, fb_page)
             if emails:
                 logger.info(f"Agent: Scraped email '{emails[0]}' from Facebook profile.")
-                return emails[0], None, "Facebook"
+                return emails[0], discovered_web, "Facebook"
 
     if instagram_url:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
@@ -495,7 +515,7 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
         emails = await scrape_url_for_emails(None, instagram_url)
         if emails:
             logger.info(f"Agent: Scraped email '{emails[0]}' from Instagram profile.")
-            return emails[0], None, "Instagram"
+            return emails[0], discovered_web, "Instagram"
 
     if linkedin_url:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
@@ -509,7 +529,7 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
             emails = await scrape_url_for_emails(None, li_page)
             if emails:
                 logger.info(f"Agent: Scraped email '{emails[0]}' from LinkedIn profile.")
-                return emails[0], None, "LinkedIn"
+                return emails[0], discovered_web, "LinkedIn"
 
     if getattr(automation_worker, "cancel_requested", False): return None, None, None
     search_variants = build_direct_search_queries(clean_name, location)
@@ -520,7 +540,7 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
             emails = [m.lower() for m in matches if is_valid_email(m)]
             if emails:
                 logger.info(f"Agent: Scraped email '{emails[0]}' directly from fanout DDG snippet.")
-                return emails[0], None, "Direct Search"
+                return emails[0], discovered_web, "Direct Search"
 
     if phone_number:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
@@ -536,8 +556,8 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
                         emails = [m.lower() for m in matches if is_valid_email(m)]
                         if emails:
                             logger.info(f"Agent: Scraped email '{emails[0]}' via Reverse Phone mapping on DDG.")
-                            return emails[0], None, "Reverse Phone Search"
+                            return emails[0], discovered_web, "Reverse Phone Search"
         except Exception:
             pass
 
-    return None, None, None
+    return None, discovered_web, None

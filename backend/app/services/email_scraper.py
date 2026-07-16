@@ -387,7 +387,26 @@ async def check_website_on_social_page(page) -> Optional[str]:
     return None
 
 async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[str]:
-    """Lightning fast search using DuckDuckGo Lite via HTTPX."""
+    """Lightning fast search using duckduckgo_search library with custom HTTPX fallback."""
+    # 1. Try modern duckduckgo_search library
+    try:
+        from duckduckgo_search import DDGS
+        with DDGS() as ddgs:
+            # Run text search synchronously since ddgs.text is synchronous
+            results = list(ddgs.text(query, max_results=10))
+            if results:
+                if extract_snippets:
+                    snippets = [r["body"] for r in results if r.get("body")]
+                    if snippets:
+                        return snippets
+                else:
+                    links = [r["href"] for r in results if r.get("href")]
+                    if links:
+                        return links
+    except Exception as e:
+        logger.warning(f"duckduckgo_search library failed for query '{query}': {e}. Falling back to custom HTTPX scraper...")
+
+    # 2. Custom HTTPX Fallback Scraper
     try:
         import httpx
         from bs4 import BeautifulSoup
@@ -430,7 +449,7 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
 
             return links if links else results
     except Exception as e:
-        logger.warning(f"Error in ddg_lite_search for query '{query}': {e}")
+        logger.warning(f"Error in custom ddg_lite_search fallback for query '{query}': {e}")
         return []
 
 async def ddg_lite_search_fanout(queries: List[str], extract_snippets: bool = False, max_results: int = 5) -> List[str]:

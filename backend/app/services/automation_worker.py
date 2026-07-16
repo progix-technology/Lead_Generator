@@ -358,17 +358,8 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 if not any(g in email_prefix for g in generic_prefixes) and len(email_prefix) > 2 and email_prefix.isalpha():
                     greeting_name = email_prefix.capitalize()
                 else:
-                    # Clean company name (don't use single character words like 'A')
-                    words = (name or "").split()
-                    if words:
-                        first_word = words[0]
-                        # If first word is just a single letter (like 'A' or 'J'), use full name + " Team"
-                        if len(first_word) <= 2 or not first_word.isalpha():
-                            greeting_name = f"{name} Team"
-                        else:
-                            greeting_name = f"{first_word} Team"
-                    else:
-                        greeting_name = "Team"
+                    # Fallback to the exact full company name
+                    greeting_name = name if name else "Team"
 
             if is_redesign:
                 subject_tmpl = current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
@@ -482,26 +473,16 @@ async def run_mailer_cycle(db) -> Dict[str, Any]:
     meta = record.get("metadata") or {}
     first_name_candidate = meta.get("first_name")
     
-    # Clean greeting names (avoid single-letter names, and verify if it's just the first word of a long business name)
-    first_name = "Team"
+    # Clean greeting names: If first name candidate was saved as a single cut word of a multi-word company,
+    # or is generic, fall back to the full company name (name).
+    first_name = name if name else "Team"
     if first_name_candidate and len(first_name_candidate) > 2 and first_name_candidate.lower() not in ["team", "there"]:
-        # If it was saved as a single cut word of a multi-word company name, turn it into [Company] Team
         words = (name or "").split()
+        # If it's just the first word of a multi-word company, replace it with the full company name
         if len(words) > 1 and first_name_candidate == words[0]:
-            first_name = f"{name} Team"
+            first_name = name
         else:
             first_name = first_name_candidate
-    else:
-        # Fallback helper
-        words = (name or "").split()
-        if words:
-            first_word = words[0]
-            if len(first_word) <= 2 or not first_word.isalpha():
-                first_name = f"{name} Team"
-            else:
-                first_name = f"{first_word} Team"
-        else:
-            first_name = "Team"
             
     website = meta.get("website") or "your business"
     

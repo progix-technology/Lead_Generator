@@ -476,8 +476,8 @@ async def run_mailer_cycle(db) -> Dict[str, Any]:
     first_name = name if name else "Team"
     if first_name_candidate and len(first_name_candidate) > 2 and first_name_candidate.lower() not in ["team", "there"]:
         words = (name or "").split()
-        # If it's just the first word of a multi-word company, replace it with the full company name
-        if len(words) > 1 and first_name_candidate == words[0]:
+        # If it's just the first word of a multi-word company (case-insensitive check), replace it with the full company name
+        if len(words) > 1 and first_name_candidate.lower().strip() == words[0].lower().strip():
             first_name = name
         else:
             first_name = first_name_candidate

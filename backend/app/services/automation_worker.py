@@ -359,9 +359,10 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
             if not greeting_name:
                 email_prefix = email.split("@")[0].lower()
                 generic_prefixes = ["info", "contact", "support", "admin", "sales", "hello", "team", "mail", "office", "marketing"]
+                company_squished = name.replace(" ", "").lower() if name else ""
                 
-                # Check if email prefix looks like a personal first name (not generic, length > 2, only letters)
-                if not any(g in email_prefix for g in generic_prefixes) and len(email_prefix) > 2 and email_prefix.isalpha():
+                # Check if email prefix looks like a personal first name (not generic, length > 2, only letters, and not the company name itself)
+                if not any(g in email_prefix for g in generic_prefixes) and len(email_prefix) > 2 and email_prefix.isalpha() and email_prefix not in company_squished:
                     greeting_name = email_prefix.capitalize()
                 else:
                     # Fallback to the exact full company name

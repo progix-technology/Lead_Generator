@@ -144,7 +144,9 @@ def clean_first_name_with_ai_sync(email: str, company_name: str, custom_api_key:
        extract just the clean personal first name capitalized (e.g. "John", "Kazim", "Sarah"). Strip any numbers, suffixes or special characters.
     2. If the email prefix is generic (e.g. "info@", "contact@", "support@", "admin@", "sales@", "server@", "hello@", "team@"), 
        use the company name + " Team" (e.g. "Gerson Bakery Team" or "Narala Bakery Team").
-    3. Keep it brief.
+    3. If the email prefix is the company name or a variation of it (e.g. "bayshoretransmissions" for "Bayshore Transmissions"), 
+       use the EXACT company name + " Team" (e.g. "Bayshore Transmissions Team"). Do NOT treat it as a person's name.
+    4. Keep it brief.
     
     The output MUST be a JSON object containing a single key "first_name":
     {{"first_name": "extracted_name"}}

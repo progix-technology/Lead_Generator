@@ -29,5 +29,6 @@ jobs:
         env:
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           DATABASE_NAME: "leadgen_pro"
+          SECRET_KEY: "dummy-secret-key-for-cron"
         run: |
           python backend/cron_run.py

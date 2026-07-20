@@ -406,7 +406,7 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Referer": "https://duckduckgo.com/"
         }
-        url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
+        url = f"https://html.duckduckgo.com/lite/?q={urllib.parse.quote_plus(query)}"
         
         async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
             r = await client.get(url, headers=headers)
@@ -419,13 +419,13 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
             links = []
             
             if extract_snippets:
-                for snippet in soup.select("a.result__snippet"):
+                for snippet in soup.select(".result-snippet"):
                     snippet_text = snippet.get_text(separator=' ', strip=True)
                     if snippet_text:
                         results.append(snippet_text)
                 return results
 
-            for a in soup.select("a.result__url"):
+            for a in soup.select("a.result-link"):
                 href = a.get("href", "")
                 if "uddg=" in href:
                     try:

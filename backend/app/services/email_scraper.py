@@ -408,7 +408,7 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
         }
         url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
         
-        async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
+        async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
             r = await client.get(url, headers=headers)
             if r.status_code not in (200, 202):
                 logger.warning(f"DDG HTML search failed for query '{query}': HTTP {r.status_code}")
@@ -438,7 +438,7 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
             
             return links
     except Exception as e:
-        logger.warning(f"Error in custom ddg_lite_search for query '{query}': {e}")
+        logger.warning(f"Error in custom ddg_lite_search for query '{query}': {type(e).__name__} - {e}")
         return []
 
 async def ddg_lite_search_fanout(queries: List[str], extract_snippets: bool = False, max_results: int = 5) -> List[str]:

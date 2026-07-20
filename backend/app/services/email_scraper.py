@@ -390,10 +390,13 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
     """Lightning fast search using duckduckgo_search library with custom HTTPX fallback."""
     # 1. Try modern duckduckgo_search library
     try:
-        from ddgs import DDGS
+        try:
+            from ddgs import DDGS
+        except ImportError:
+            from duckduckgo_search import DDGS  # fallback for older installs
         with DDGS() as ddgs:
-            # Run text search synchronously since ddgs.text is synchronous
-            results = list(ddgs.text(query, max_results=10))
+            # Run text search - limit to 1 backend (fast) with short timeout
+            results = list(ddgs.text(query, max_results=10, backend="api"))
             if results:
                 if extract_snippets:
                     snippets = [r["body"] for r in results if r.get("body")]
@@ -497,24 +500,6 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
             instagram_url = link
         elif 'linkedin.com' in link_lower and not linkedin_url and ('/company/' in link_lower or '/in/' in link_lower):
             linkedin_url = link
-        else:
-            # Check if this link is a custom business website (excluding directory/promotional sites)
-            ignore_domains = [
-                'facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'x.com',
-                'youtube.com', 'pinterest.com', 'tiktok.com', 'linktr.ee', 'google.com',
-                'yahoo.com', 'bing.com', 'duckduckgo.com', 'messenger.com', 'yelp.com',
-                'yellowpages.com', 'yp.com', 'foursquare.com', 'bbb.org', 'manta.com',
-                'tripadvisor.com', 'angi.com', 'houzz.com', 'chamberofcommerce.com', 'local.yahoo.com',
-                'mapquest.com', 'groupon.com', 'local.com', 'superpages.com', 'whitepages.com',
-                'wikipedia.org', 'craigslist.org', 'nextdoor.com', 'glassdoor.com', 'indeed.com',
-                'yellowbook.com', 'merchantcircle.com', 'citysearch.com', 'patch.com'
-            ]
-            if not discovered_web and not any(d in link_lower for d in ignore_domains):
-                try:
-                    parsed = urllib.parse.urlparse(link)
-                    discovered_web = f"{parsed.scheme}://{parsed.netloc}"
-                except Exception:
-                    pass
 
     from app.services import automation_worker
     

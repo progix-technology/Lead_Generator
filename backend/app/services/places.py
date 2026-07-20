@@ -356,34 +356,10 @@ def query_ddg_local_sync(query: str, location: str) -> List[Dict[str, Any]]:
                         return companies
                 except Exception:
                     pass
-            
-            # If JSON endpoint is blocked (HTTP 403 or Timeout), crawl DDG HTML search results directly for active domains
-            html_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(q_str)}"
-            html_resp = client.get(html_url, headers=headers)
-            if html_resp.status_code == 200:
-                soup = BeautifulSoup(html_resp.text, "html.parser")
-                companies = []
-                # Parse business anchors from results list
-                for result in soup.select("a.result__snippet"):
-                    title_elem = result.find_previous("a", class_="result__url")
-                    if title_elem:
-                        name = title_elem.get_text(strip=True)
-                        link = title_elem.get("href", "")
-                        if "uddg=" in link:
-                            link = urllib.parse.unquote(link.split("uddg=")[1].split("&")[0])
-                        if name and link and not any(d in link for d in ["youtube.com", "wikipedia.org", "facebook.com", "instagram.com"]):
-                            companies.append({
-                                "name": name.split("-")[0].strip(),
-                                "industry": query.capitalize(),
-                                "address": location,
-                                "phone_number": "",
-                                "website_url": link,
-                                "rating": None,
-                                "rating_count": 0
-                            })
-                return companies
+            # If JSON endpoint is blocked (HTTP 403 or Timeout), return empty to trigger Yelp fallback
+            return []
     except Exception as e:
-        logger.warning(f"DDG fallback search failed for '{q_str}': {e}")
+        logger.warning(f"DDG Local HTTP request failed: {e}")
     return []
 
 async def query_nominatim_businesses(query: str, location: str) -> List[Dict[str, Any]]:

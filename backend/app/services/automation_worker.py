@@ -540,6 +540,13 @@ async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]
         await repo.records_col.delete_one({"_id": record["_id"] if "_id" in record else None} if "_id" in record else {"id": record.get("id")})
         await repo.records_col.delete_one({"_id": ObjectId(record["id"])})
         return {"status": "skipped", "reason": "stale_non_redesign_record"}
+        
+    # ENFORCE REDESIGN SETTING: If redesign is disabled, do not send redesign emails.
+    if is_redesign and exclude_redesign:
+        # We fetched a legacy record that didn't have is_redesign explicitly set in DB
+        log_progress(f"Autopilot Mailer: Skipping redesign lead '{name}' because Redesign is currently disabled.")
+        return {"status": "skipped", "reason": "redesign_disabled"}
+    
     
     if is_redesign:
         subject_tmpl = current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"

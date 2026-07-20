@@ -93,10 +93,16 @@ async def lifespan(app: FastAPI):
     import threading
     threading.Thread(target=install_playwright, daemon=True).start()
     
-    # Start the decoupled background autopilot schedulers
-    from app.services.automation_worker import run_scraper_scheduler, run_mailer_scheduler
-    asyncio.create_task(run_scraper_scheduler())
-    asyncio.create_task(run_mailer_scheduler())
+    # Start the decoupled background autopilot schedulers locally. 
+    # On Render, we disable this to avoid exceeding the 512MB RAM limit.
+    # The GitHub Actions cron job (`cron_run.py`) handles the actual scraping/mailing in production.
+    import os
+    if not os.environ.get("RENDER"):
+        from app.services.automation_worker import run_scraper_scheduler, run_mailer_scheduler
+        asyncio.create_task(run_scraper_scheduler())
+        asyncio.create_task(run_mailer_scheduler())
+    else:
+        logger.info("FastAPI Lifespan: Running on Render. Background schedulers disabled to save memory. (Handled by GitHub Actions Cron)")
     yield
     # Shutdown: Close Database connection
     await close_mongo_connection()

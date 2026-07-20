@@ -124,11 +124,15 @@ async def trigger_cycle(
 
 @router.get("/progress", response_model=Dict[str, Any])
 async def get_progress(
+    repo: AutomationRepository = Depends(get_automation_repo),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
-    """Retrieve real-time progress logs of the currently running autopilot cycle."""
-    from app.services.automation_worker import automation_progress, is_batch_running
-    return {"progress": automation_progress, "is_running": is_batch_running}
+    """Retrieve real-time progress logs from MongoDB for cross-process support."""
+    from app.services.automation_worker import is_batch_running
+    config = await repo.get_settings()
+    live_logs = config.get("live_logs", [])
+    is_running = config.get("enabled", False)
+    return {"progress": live_logs, "is_running": is_running}
 
 @router.post("/resend/{record_id}", response_model=Dict[str, Any])
 async def resend_failed_email(

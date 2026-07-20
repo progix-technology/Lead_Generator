@@ -54,7 +54,20 @@ def log_progress(msg: str):
         
     last_log_date = current_date
     timestamp = ist_now.strftime("%H:%M:%S")
-    automation_progress.append(f"[{timestamp}] {msg}")
+    formatted = f"[{timestamp}] {msg}"
+    automation_progress.append(formatted)
+    
+    # Sync logs to MongoDB for cross-process visibility (e.g. GitHub Actions -> Render API)
+    try:
+        loop = asyncio.get_running_loop()
+        from app.database.connection import db_instance
+        if db_instance.db is not None:
+            loop.create_task(db_instance.db["automation_settings"].update_one(
+                {},
+                {"$push": {"live_logs": {"$each": [formatted], "$slice": -200}}}
+            ))
+    except Exception:
+        pass
 
 def _safe_str(value: Any, default: str = "") -> str:
     if value is None:

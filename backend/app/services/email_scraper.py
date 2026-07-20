@@ -396,29 +396,7 @@ async def check_website_on_social_page(page) -> Optional[str]:
     return None
 
 async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[str]:
-    """Lightning fast search using duckduckgo_search library with custom HTTPX fallback."""
-    # 1. Try modern duckduckgo_search library
-    try:
-        try:
-            from ddgs import DDGS
-        except ImportError:
-            from duckduckgo_search import DDGS  # fallback for older installs
-        with DDGS() as ddgs:
-            # Run text search - limit to 1 backend (fast) with short timeout
-            results = list(ddgs.text(query, max_results=10, backend="api"))
-            if results:
-                if extract_snippets:
-                    snippets = [r["body"] for r in results if r.get("body")]
-                    if snippets:
-                        return snippets
-                else:
-                    links = [r["href"] for r in results if r.get("href")]
-                    if links:
-                        return links
-    except Exception as e:
-        logger.warning(f"duckduckgo_search library failed for query '{query}': {e}. Falling back to custom HTTPX scraper...")
-
-    # 2. Custom HTTPX Fallback Scraper
+    """Lightning fast search using custom HTTPX scraper targeting DDG HTML."""
     try:
         import httpx
         from bs4 import BeautifulSoup
@@ -426,42 +404,41 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
         
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://lite.duckduckgo.com/"
+            "Referer": "https://duckduckgo.com/"
         }
-        url = "https://lite.duckduckgo.com/lite/"
+        url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
         
-        async with httpx.AsyncClient(verify=False, timeout=3.0) as client:
-            r = await client.post(url, data={"q": query}, headers=headers, timeout=3.0)
+        async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
+            r = await client.get(url, headers=headers)
             if r.status_code != 200:
-                logger.warning(f"DDG Lite search failed for query '{query}': HTTP {r.status_code}")
+                logger.warning(f"DDG HTML search failed for query '{query}': HTTP {r.status_code}")
                 return []
 
             soup = BeautifulSoup(r.text, "html.parser")
+            results = []
             links = []
-            for a in soup.find_all("a", href=True):
+            
+            if extract_snippets:
+                for snippet in soup.select("a.result__snippet"):
+                    snippet_text = snippet.get_text(separator=' ', strip=True)
+                    if snippet_text:
+                        results.append(snippet_text)
+                return results
+
+            for a in soup.select("a.result__url"):
                 href = a.get("href", "")
                 if "uddg=" in href:
                     try:
-                        parts = href.split("uddg=")
-                        if len(parts) > 1:
-                            target = parts[1].split("&")[0]
-                            href = urllib.parse.unquote(target)
-                            links.append(href)
+                        target = href.split("uddg=")[1].split("&")[0]
+                        links.append(urllib.parse.unquote(target))
                     except Exception:
                         pass
-            results = []
+                else:
+                    links.append(href)
             
-            if extract_snippets:
-                for td in soup.find_all("td", class_="snippet"):
-                    snippet_text = td.get_text(separator=' ', strip=True)
-                    if snippet_text:
-                        results.append(snippet_text)
-                if results:
-                    return results
-
-            return links if links else results
+            return links
     except Exception as e:
-        logger.warning(f"Error in custom ddg_lite_search fallback for query '{query}': {e}")
+        logger.warning(f"Error in custom ddg_lite_search for query '{query}': {e}")
         return []
 
 async def ddg_lite_search_fanout(queries: List[str], extract_snippets: bool = False, max_results: int = 5) -> List[str]:

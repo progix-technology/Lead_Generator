@@ -129,6 +129,15 @@ def is_valid_email(email: str) -> bool:
         if any(char.isdigit() for char in tld):
             return False
             
+    # 5. DNS Deliverability (MX Record) Check
+    # This prevents sending to expired domains or fake addresses which cause bounces.
+    try:
+        from email_validator import validate_email
+        validate_email(email, check_deliverability=True)
+    except Exception as e:
+        logger.info(f"Agent: Rejected email '{email}' due to deliverability check failure ({e})")
+        return False
+            
     return True
 
 

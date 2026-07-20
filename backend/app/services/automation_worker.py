@@ -321,16 +321,26 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                     log_progress(f"Autopilot: Website audit unavailable for discovered website '{discovered_web}': {audit_err}. Skipping.")
                     return 0
 
-            facebook_only = current_settings.get("facebook_only", False)
             if not email:
                 log_progress(f"Autopilot: No contact emails discovered for '{name}'.")
                 return 0
 
-            # Priority social sources for no-website leads
-            allowed_sources = ["Facebook"] if facebook_only else [
-                "Facebook", "Instagram", "LinkedIn",
-                "Website Contact Page", "Direct Search", "Reverse Phone Search"
-            ]
+            facebook_only = current_settings.get("facebook_only", False)
+
+            # Redesign leads: always allow Website Contact Page (that's where their email lives)
+            # Standard (no-website) leads: respect facebook_only setting
+            if is_redesign:
+                allowed_sources = [
+                    "Facebook", "Instagram", "LinkedIn",
+                    "Website Contact Page", "Direct Search", "Reverse Phone Search"
+                ]
+            elif facebook_only:
+                allowed_sources = ["Facebook"]
+            else:
+                allowed_sources = [
+                    "Facebook", "Instagram", "LinkedIn",
+                    "Website Contact Page", "Direct Search", "Reverse Phone Search"
+                ]
             if email_source not in allowed_sources:
                 log_progress(f"Autopilot: Email '{email}' found for '{name}' via '{email_source}' (skipped - not in allowed sources {allowed_sources})")
                 return 0

@@ -390,7 +390,7 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
     """Lightning fast search using duckduckgo_search library with custom HTTPX fallback."""
     # 1. Try modern duckduckgo_search library
     try:
-        from duckduckgo_search import DDGS
+        from ddgs import DDGS
         with DDGS() as ddgs:
             # Run text search synchronously since ddgs.text is synchronous
             results = list(ddgs.text(query, max_results=10))

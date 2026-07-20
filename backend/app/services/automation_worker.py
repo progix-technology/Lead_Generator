@@ -605,7 +605,7 @@ async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]
 async def run_mailer_scheduler():
     """
     Runs continuously, picking up pending emails and sending them with a 3-4 min jitter delay.
-    Strictly runs only between 9 AM and 5 PM IST (Asia/Kolkata).
+    Strictly runs only between 9 AM and 6 PM IST (Asia/Kolkata).
     """
     import random
     from zoneinfo import ZoneInfo
@@ -621,12 +621,12 @@ async def run_mailer_scheduler():
                 await asyncio.sleep(5)
                 continue
 
-            # Check working hours constraint (9 AM - 5 PM IST)
+            # Check working hours constraint (9 AM - 6 PM IST)
             ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
             current_hour = ist_now.hour
             
-            if current_hour < 9 or current_hour >= 17:
-                log_progress(f"Autopilot Mailer: Current time ({ist_now.strftime('%H:%M:%S')} IST) is outside working hours (9 AM - 5 PM). Pausing mailer.")
+            if current_hour < 9 or current_hour >= 18:
+                log_progress(f"Autopilot Mailer: Current time ({ist_now.strftime('%H:%M:%S')} IST) is outside working hours (9 AM - 6 PM). Pausing mailer.")
                 # Sleep for 15 minutes before checking time again
                 await asyncio.sleep(900)
                 continue
@@ -662,7 +662,7 @@ async def run_mailer_scheduler():
 async def run_scraper_scheduler():
     """
     Runs the scraper periodically to keep the queue filled.
-    Strictly runs only between 9 AM and 5 PM IST (Asia/Kolkata).
+    Strictly runs only between 9 AM and 6 PM IST (Asia/Kolkata).
     """
     from zoneinfo import ZoneInfo
     logger.info("Autopilot Scraper: Background loop started.")
@@ -673,11 +673,11 @@ async def run_scraper_scheduler():
     
     while True:
         try:
-            # Check working hours constraint (9 AM - 5 PM IST)
+            # Check working hours constraint (9 AM - 6 PM IST)
             ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
             current_hour = ist_now.hour
             
-            if current_hour < 9 or current_hour >= 17:
+            if current_hour < 9 or current_hour >= 18:
                 # Sleep for 15 minutes before checking time again
                 await asyncio.sleep(900)
                 continue

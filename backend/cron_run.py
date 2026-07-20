@@ -32,11 +32,11 @@ async def main():
         client.close()
         return
 
-    # 3. Check working hours constraint (9 AM - 5 PM IST)
+    # 3. Check working hours constraint (9 AM - 6 PM IST)
     ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
     current_hour = ist_now.hour
-    if current_hour < 9 or current_hour >= 17:
-        print(f"Current time ({ist_now.strftime('%H:%M:%S')} IST) is outside working hours (9 AM - 5 PM). Exiting.")
+    if current_hour < 9 or current_hour >= 18:
+        print(f"Current time ({ist_now.strftime('%H:%M:%S')} IST) is outside working hours (9 AM - 6 PM). Exiting.")
         client.close()
         return
 

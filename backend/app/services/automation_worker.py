@@ -649,10 +649,15 @@ async def run_scraper_scheduler():
             repo = AutomationRepository(db)
             config = await repo.get_settings()
             if config.get("enabled", False):
-                pending_count = await repo.count_pending_records()
+                enable_redesign = config.get("enable_redesign", True)
+                if enable_redesign:
+                    pending_count = await repo.count_pending_records()
+                else:
+                    pending_count = await repo.count_pending_standard_records()
+                
                 # Keep queue stocked with at least 15-20 leads
                 if pending_count < 20:
-                    log_progress(f"Autopilot Scraper: Queue has {pending_count} leads. Starting search for more...")
+                    log_progress(f"Autopilot Scraper: Queue has {pending_count} active leads. Starting search for more...")
                     await run_automation_cycle(db)
                 else:
                     # Plenty of leads in queue, rest.

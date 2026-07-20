@@ -284,7 +284,13 @@ class AutomationRepository:
         query = {"status": "Pending_Email"}
         if exclude_redesign:
             query["metadata.is_redesign"] = {"$ne": True}
-        cursor = self.records_col.find(query).sort("created_at", 1).limit(limit)
+        
+        # Prioritize standard emails (no website) over redesign emails
+        # Sorting by metadata.is_redesign asc puts missing/False values first, and True values last.
+        cursor = self.records_col.find(query).sort([
+            ("metadata.is_redesign", 1),
+            ("created_at", 1)
+        ]).limit(limit)
         return [self._format_id(doc) async for doc in cursor]
 
     async def count_pending_records(self) -> int:

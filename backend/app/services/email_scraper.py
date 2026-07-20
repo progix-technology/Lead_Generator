@@ -410,7 +410,7 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
         
         async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
             r = await client.get(url, headers=headers)
-            if r.status_code != 200:
+            if r.status_code not in (200, 202):
                 logger.warning(f"DDG HTML search failed for query '{query}': HTTP {r.status_code}")
                 return []
 

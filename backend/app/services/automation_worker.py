@@ -222,15 +222,21 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         name = _safe_str(company.get("name"), "Unknown Business")
         address = company.get("address", "")
         website_url = company.get("website_url")
+        enable_redesign = current_settings.get("enable_redesign", True)
 
         is_redesign = False
-        skip_lead = False
         seo_score = 0
         ui_score = 0
         performance_score = 0
         suggestions = []
-        
-        if website_url and not is_directory_url(website_url):
+
+        # If company has a website and redesign is DISABLED: skip immediately.
+        # We only want businesses with NO website as primary targets.
+        if website_url and not is_directory_url(website_url) and not enable_redesign:
+            log_progress(f"Autopilot: Lead '{name}' has a website and Redesign Mode is OFF. Skipping (focusing on no-website leads).")
+            return 0
+
+        if website_url and not is_directory_url(website_url) and enable_redesign:
             from app.services.audit import perform_live_website_audit
             try:
                 audit_results = await perform_live_website_audit(website_url)
@@ -244,19 +250,16 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                     is_redesign = True
                     log_progress(f"Autopilot: Lead '{name}' has a weak website (Score: {avg_score:.1f}/100 < 60). Queueing redesign outreach.")
                 else:
-                    skip_lead = True
                     log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100 >= 60). Skipping lead.")
+                    return 0
             except Exception as audit_err:
-                log_progress(f"Autopilot: Website audit unavailable for '{website_url}': {audit_err}. Skipping to avoid sending blindly.")
-                skip_lead = True
+                log_progress(f"Autopilot: Website audit unavailable for '{website_url}': {audit_err}. Skipping.")
+                return 0
         else:
-            # No custom website found - directly eligible for standard outreach (website creation pitch)
+            # No custom website found - strong candidate for new website pitch
             is_redesign = False
             suggestions = ["No custom website URL was detected; this is a strong new website candidate."]
             log_progress(f"Autopilot: Lead '{name}' has no website. Queueing new website creation pitch.")
-
-        if skip_lead:
-            return 0
 
         # Prevent duplicate outreach: check if already exists in DB
         existing = await co_repo.collection.find_one({"name": name})
@@ -297,8 +300,10 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
             if not email:
                 email, discovered_web, email_source = await find_email_for_company(name, location, company.get("phone_number", ""))
             
-            if discovered_web:
-                # Treat it as a redesign candidate and perform website audit dynamically
+            # discovered_web = a website found via DDG during social search
+            # If redesign is DISABLED: ignore discovered website, keep lead as standard (no-website pitch)
+            # If redesign is ENABLED: audit the discovered website like any other
+            if discovered_web and enable_redesign:
                 from app.services.audit import perform_live_website_audit
                 try:
                     audit_results = await perform_live_website_audit(discovered_web)
@@ -323,10 +328,14 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
             if not email:
                 log_progress(f"Autopilot: No contact emails discovered for '{name}'.")
                 return 0
-                
-            allowed_sources = ["Facebook"] if facebook_only else ["Facebook", "Instagram", "LinkedIn", "Website Contact Page", "Direct Search", "Reverse Phone Search"]
+
+            # Priority social sources for no-website leads
+            allowed_sources = ["Facebook"] if facebook_only else [
+                "Facebook", "Instagram", "LinkedIn",
+                "Website Contact Page", "Direct Search", "Reverse Phone Search"
+            ]
             if email_source not in allowed_sources:
-                log_progress(f"Autopilot: Email '{email}' found for '{name}' via '{email_source}' (skipped - source must be in {allowed_sources})")
+                log_progress(f"Autopilot: Email '{email}' found for '{name}' via '{email_source}' (skipped - not in allowed sources {allowed_sources})")
                 return 0
 
             # SMTP Verification Check

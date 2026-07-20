@@ -230,13 +230,10 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         performance_score = 0
         suggestions = []
 
-        # If company has a website and redesign is DISABLED: skip immediately.
-        # We only want businesses with NO website as primary targets.
-        if website_url and not is_directory_url(website_url) and not enable_redesign:
-            log_progress(f"Autopilot: Lead '{name}' has a website and Redesign Mode is OFF. Skipping (focusing on no-website leads).")
-            return 0
-
-        if website_url and not is_directory_url(website_url) and enable_redesign:
+        if website_url and not is_directory_url(website_url):
+            # Always audit website companies regardless of enable_redesign.
+            # - Score < 60  → queue as redesign candidate (mailer will send only when enable_redesign is ON)
+            # - Score >= 60 → skip (healthy site, not a candidate)
             from app.services.audit import perform_live_website_audit
             try:
                 audit_results = await perform_live_website_audit(website_url)
@@ -248,15 +245,15 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 avg_score = (seo_score + ui_score + performance_score) / 3
                 if avg_score < 60:
                     is_redesign = True
-                    log_progress(f"Autopilot: Lead '{name}' has a weak website (Score: {avg_score:.1f}/100 < 60). Queueing redesign outreach.")
+                    log_progress(f"Autopilot: Lead '{name}' has a weak website (Score: {avg_score:.1f}/100 < 60). Added to redesign queue.")
                 else:
-                    log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100 >= 60). Skipping lead.")
+                    log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100 >= 60). Skipping.")
                     return 0
             except Exception as audit_err:
                 log_progress(f"Autopilot: Website audit unavailable for '{website_url}': {audit_err}. Skipping.")
                 return 0
         else:
-            # No custom website found - strong candidate for new website pitch
+            # No custom website → primary target: standard new-website pitch
             is_redesign = False
             suggestions = ["No custom website URL was detected; this is a strong new website candidate."]
             log_progress(f"Autopilot: Lead '{name}' has no website. Queueing new website creation pitch.")

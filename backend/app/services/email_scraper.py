@@ -465,16 +465,20 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
     Returns: Tuple[Optional[str], Optional[str], Optional[str]] -> (email, website_url, email_source)
     """
     clean_name = (company_name or "").replace("'", "").replace('"', '')
-    search_query = f"{clean_name} {location}"
+    search_queries = [
+        f"{clean_name} {location} facebook",
+        f"{clean_name} {location} instagram",
+        f"{clean_name} {location}"
+    ]
     
-    logger.info(f"Agent: Fast searching DDG Lite for '{search_query}'")
+    logger.info(f"Agent: Fast searching DDG Lite (Fanout) for '{clean_name} {location}' socials")
     
     facebook_url = None
     instagram_url = None
     linkedin_url = None
     discovered_web = None
 
-    links = await ddg_lite_search(search_query)
+    links = await ddg_lite_search_fanout(search_queries, extract_snippets=False, max_results=3)
     for link in links:
         if not link.startswith(('http://', 'https://')): continue
         link_lower = link.lower()

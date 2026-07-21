@@ -415,34 +415,34 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
             url = f"https://html.duckduckgo.com/lite/?q={urllib.parse.quote_plus(query)}"
             
             async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
-            r = await client.get(url, headers=headers)
-            if r.status_code not in (200, 202):
-                logger.warning(f"DDG HTML search failed for query '{query}': HTTP {r.status_code}")
-                return []
+                r = await client.get(url, headers=headers)
+                if r.status_code not in (200, 202):
+                    logger.warning(f"DDG HTML search failed for query '{query}': HTTP {r.status_code}")
+                    return []
 
-            soup = BeautifulSoup(r.text, "html.parser")
-            results = []
-            links = []
-            
-            if extract_snippets:
-                for snippet in soup.select(".result-snippet"):
-                    snippet_text = snippet.get_text(separator=' ', strip=True)
-                    if snippet_text:
-                        results.append(snippet_text)
-                return results
+                soup = BeautifulSoup(r.text, "html.parser")
+                results = []
+                links = []
+                
+                if extract_snippets:
+                    for snippet in soup.select(".result-snippet"):
+                        snippet_text = snippet.get_text(separator=' ', strip=True)
+                        if snippet_text:
+                            results.append(snippet_text)
+                    return results
 
-            for a in soup.select("a.result-link"):
-                href = a.get("href", "")
-                if "uddg=" in href:
-                    try:
-                        target = href.split("uddg=")[1].split("&")[0]
-                        links.append(urllib.parse.unquote(target))
-                    except Exception:
-                        pass
-                else:
-                    links.append(href)
-            
-            return links
+                for a in soup.select("a.result-link"):
+                    href = a.get("href", "")
+                    if "uddg=" in href:
+                        try:
+                            target = href.split("uddg=")[1].split("&")[0]
+                            links.append(urllib.parse.unquote(target))
+                        except Exception:
+                            pass
+                    else:
+                        links.append(href)
+                
+                return links
         except Exception as e:
             logger.warning(f"Error in custom ddg_lite_search for query '{query}': {type(e).__name__} - {e}")
             return []

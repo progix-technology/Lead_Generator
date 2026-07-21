@@ -395,20 +395,26 @@ async def check_website_on_social_page(page) -> Optional[str]:
         logger.warning(f"Error checking website on social page: {e}")
     return None
 
+import random
+
+_ddg_semaphore = asyncio.Semaphore(3)
+
 async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[str]:
     """Lightning fast search using custom HTTPX scraper targeting DDG HTML."""
-    try:
-        import httpx
-        from bs4 import BeautifulSoup
-        import urllib.parse
-        
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": "https://duckduckgo.com/"
-        }
-        url = f"https://html.duckduckgo.com/lite/?q={urllib.parse.quote_plus(query)}"
-        
-        async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
+    async with _ddg_semaphore:
+        await asyncio.sleep(random.uniform(0.5, 1.5))
+        try:
+            import httpx
+            from bs4 import BeautifulSoup
+            import urllib.parse
+            
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": "https://duckduckgo.com/"
+            }
+            url = f"https://html.duckduckgo.com/lite/?q={urllib.parse.quote_plus(query)}"
+            
+            async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
             r = await client.get(url, headers=headers)
             if r.status_code not in (200, 202):
                 logger.warning(f"DDG HTML search failed for query '{query}': HTTP {r.status_code}")
@@ -437,9 +443,9 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
                     links.append(href)
             
             return links
-    except Exception as e:
-        logger.warning(f"Error in custom ddg_lite_search for query '{query}': {type(e).__name__} - {e}")
-        return []
+        except Exception as e:
+            logger.warning(f"Error in custom ddg_lite_search for query '{query}': {type(e).__name__} - {e}")
+            return []
 
 async def ddg_lite_search_fanout(queries: List[str], extract_snippets: bool = False, max_results: int = 5) -> List[str]:
     """Run a small set of DDG Lite queries concurrently and return the first useful results."""

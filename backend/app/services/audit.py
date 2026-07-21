@@ -31,6 +31,11 @@ async def perform_live_website_audit(url: str) -> Dict[str, Any]:
             load_time = time.time() - start_time
             
             # 1. Check HTTP Status
+            if response.status_code == 403 or response.status_code == 401:
+                # Site is blocking bots — we cannot audit it. Raise so caller skips this lead.
+                # This does NOT mean the site is low quality.
+                raise ValueError(f"Website blocked audit with HTTP {response.status_code} (bot protection active)")
+
             if response.status_code >= 400:
                 suggestions.append(f"Website returned an error status code: {response.status_code}")
                 seo_score = max(0, seo_score - 40)
@@ -86,11 +91,10 @@ async def perform_live_website_audit(url: str) -> Dict[str, Any]:
                 suggestions.append("Incomplete mobile responsive CSS rules detected.")
                 
     except Exception as e:
-        # Website is completely down or timeout
-        seo_score = 0
-        ui_score = 0
-        performance_score = 0
-        suggestions.append(f"Website is completely down or unreachable (Error: {str(e)})")
+        # Website is completely down, timed out, or blocking bots (403/401).
+        # Re-raise so caller (automation_worker) can skip this lead correctly.
+        # We do NOT assign score=0 here — that caused good sites to be wrongly added to redesign queue.
+        raise
         
     return {
         "seo_score": seo_score,

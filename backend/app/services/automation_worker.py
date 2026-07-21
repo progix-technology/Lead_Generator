@@ -221,7 +221,13 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         log_progress("Autopilot: No local businesses found for this category and location.")
         return {"status": "completed", "sent_count": 0, "scanned_count": 0}
 
-    log_progress(f"Autopilot: Found {len(results)} local businesses. Starting website filters...")
+    target_new_businesses_only = current_settings.get("target_new_businesses_only", False)
+    if target_new_businesses_only:
+        initial_count = len(results)
+        results = [r for r in results if r.get("rating_count", 999) <= 5]
+        log_progress(f"Autopilot: Targeted 'New Businesses Only' (≤ 5 reviews). Kept {len(results)}/{initial_count} leads.")
+
+    log_progress(f"Autopilot: Found {len(results)} target businesses. Starting website filters...")
     scanned_count = 0
     sent_count = 0
 

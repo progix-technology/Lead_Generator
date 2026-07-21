@@ -16,6 +16,7 @@ export default function AutomatedCampaigns() {
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [facebookOnly, setFacebookOnly] = useState(false);
+  const [targetNewBusinessesOnly, setTargetNewBusinessesOnly] = useState(false);
   const [enableRedesign, setEnableRedesign] = useState(true);
   const [dailyEmailLimit, setDailyEmailLimit] = useState(20);
   const [batchEmailLimit, setBatchEmailLimit] = useState(5);
@@ -149,6 +150,7 @@ export default function AutomatedCampaigns() {
       setCategories(settings.categories || []);
       setLocations(settings.locations || []);
       setFacebookOnly(!!settings.facebook_only);
+      setTargetNewBusinessesOnly(!!settings.target_new_businesses_only);
       setEnableRedesign(settings.enable_redesign !== false); // Default to true
       setDailyEmailLimit(settings.daily_email_limit || 20);
       setBatchEmailLimit(settings.batch_email_limit || 5);
@@ -221,6 +223,7 @@ export default function AutomatedCampaigns() {
         categories,
         locations,
         facebook_only: facebookOnly,
+        target_new_businesses_only: targetNewBusinessesOnly,
         enable_redesign: enableRedesign,
         daily_email_limit: parseInt(dailyEmailLimit) || 20,
         batch_email_limit: parseInt(batchEmailLimit) || 5
@@ -249,6 +252,7 @@ export default function AutomatedCampaigns() {
         categories,
         locations,
         facebook_only: facebookOnly,
+        target_new_businesses_only: targetNewBusinessesOnly,
         enable_redesign: enableRedesign,
         daily_email_limit: parseInt(dailyEmailLimit) || 20,
         batch_email_limit: parseInt(batchEmailLimit) || 5
@@ -863,6 +867,27 @@ export default function AutomatedCampaigns() {
                 onChange={(e) => setFacebookOnly(e.target.checked)}
               />
               <div className="w-8 h-4.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          {/* Target New Businesses (Under 5 Reviews) */}
+          <div className="flex items-center justify-between p-3 bg-indigo-50/40 border border-indigo-100 rounded-xl">
+            <div className="flex flex-col pr-2">
+              <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-wider">Target New Businesses Only</span>
+              <span className="text-[9px] text-gray-500 mt-0.5 leading-normal">
+                {targetNewBusinessesOnly
+                  ? "Filters Google Maps results to only target fresh businesses with 0 to 5 reviews."
+                  : "Off. Normal targeting without review count restrictions."}
+              </span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer shrink-0">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={targetNewBusinessesOnly}
+                onChange={(e) => setTargetNewBusinessesOnly(e.target.checked)}
+              />
+              <div className="w-8 h-4.5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-indigo-500"></div>
             </label>
           </div>
 

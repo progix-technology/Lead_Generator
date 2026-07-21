@@ -397,12 +397,12 @@ async def check_website_on_social_page(page) -> Optional[str]:
 
 import random
 
-_ddg_semaphore = asyncio.Semaphore(3)
+_ddg_semaphore = asyncio.Semaphore(1)
 
 async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[str]:
     """Lightning fast search using custom HTTPX scraper targeting Yahoo (formerly DDG)."""
     async with _ddg_semaphore:
-        await asyncio.sleep(random.uniform(0.1, 0.5))
+        await asyncio.sleep(random.uniform(1.5, 3.0))
         try:
             import httpx
             from bs4 import BeautifulSoup

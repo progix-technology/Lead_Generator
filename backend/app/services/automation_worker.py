@@ -48,7 +48,8 @@ def is_directory_url(url: str) -> bool:
         'wikipedia.org', 'wikihow.com', 'softonic.com', 'overleaf.com', 'cermati.com',
         'merriam-webster.com', 'uidai.gov.in', 'dailymotion.com', 'konglongdao.com',
         'glassdoor.com', 'indeed.com', 'duckduckgo.com', 'google.com', 'yahoo.com',
-        'bing.com', 'microsoft.com'
+        'bing.com', 'microsoft.com', 'heavenlydelightsbakery.com', 'localoria.com',
+        'findcoffeeshop.com', 'atly.com', 'roadtrippers.com', 'checkle.com', 'alltopplaces.com'
     ]
     return any(domain in url_lower for domain in directories)
 

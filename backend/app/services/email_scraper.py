@@ -532,7 +532,8 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
         'wikipedia.org', 'wikihow.com', 'softonic.com', 'overleaf.com', 'cermati.com',
         'merriam-webster.com', 'uidai.gov.in', 'dailymotion.com', 'konglongdao.com',
         'glassdoor.com', 'indeed.com', 'duckduckgo.com', 'google.com', 'yahoo.com',
-        'bing.com', 'microsoft.com'
+        'bing.com', 'microsoft.com', 'heavenlydelightsbakery.com', 'localoria.com',
+        'findcoffeeshop.com', 'atly.com', 'roadtrippers.com', 'checkle.com', 'alltopplaces.com'
     ]
 
     other_candidate_urls = []

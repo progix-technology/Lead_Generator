@@ -30,14 +30,25 @@ def request_cancellation():
     log_progress("Autopilot: Cancellation requested by user. Halting execution...")
 
 def is_directory_url(url: str) -> bool:
-    """Helper to detect if a URL is a directory listing profile (like Yelp) rather than a custom business website."""
+    """Helper to detect if a URL is a directory listing profile (like Yelp, RestaurantGuru, Placewing) rather than a custom business website."""
     if not url:
         return False
     url_lower = url.lower()
     directories = [
-        'yelp.com', 'facebook.com', 'instagram.com', 'apple.com/place', 'maps.apple.com',
-        'yellowpages.com', 'yp.com', 'foursquare.com', 'bbb.org', 'manta.com',
-        'tripadvisor.com', 'angi.com', 'houzz.com', 'chamberofcommerce.com', 'local.yahoo.com'
+        'yelp.com', 'facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'x.com',
+        'apple.com', 'maps.apple.com', 'yellowpages.com', 'yp.com', 'foursquare.com', 'bbb.org',
+        'manta.com', 'tripadvisor.com', 'angi.com', 'houzz.com', 'chamberofcommerce.com',
+        'local.yahoo.com', 'mapquest.com', 'greatschools.org', 'privateschoolreview.com',
+        'childcarecenter.us', 'allbiz.com', 'schoolandcollegelistings.com', 'restaurantguru.com',
+        'placewing.com', 'mymenuweb.com', 'cloveronline.com', 'seamless.com', 'grubhub.com',
+        'doordash.com', 'ubereats.com', 'postmates.com', 'menupix.com', 'singleplatform.com',
+        'chownow.com', 'toasttab.com', 'zmenu.com', 'allmenus.com', 'sirved.com',
+        'loc8nearme.com', 'findglocal.com', 'top-rated.online', 'us-businesses.com',
+        'companycheck.com', 'dnb.com', 'bizzlist.com', 'youtube.com', 'youtubekids.com',
+        'wikipedia.org', 'wikihow.com', 'softonic.com', 'overleaf.com', 'cermati.com',
+        'merriam-webster.com', 'uidai.gov.in', 'dailymotion.com', 'konglongdao.com',
+        'glassdoor.com', 'indeed.com', 'duckduckgo.com', 'google.com', 'yahoo.com',
+        'bing.com', 'microsoft.com'
     ]
     return any(domain in url_lower for domain in directories)
 
@@ -351,14 +362,16 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
             if is_redesign:
                 allowed_sources = [
                     "Facebook", "Instagram", "LinkedIn",
-                    "Website Contact Page", "Direct Search", "Reverse Phone Search"
+                    "Website Contact Page", "Direct Search", "Reverse Phone Search",
+                    "Discovered Website", "Directory Listing"
                 ]
             elif facebook_only:
                 allowed_sources = ["Facebook"]
             else:
                 allowed_sources = [
                     "Facebook", "Instagram", "LinkedIn",
-                    "Website Contact Page", "Direct Search", "Reverse Phone Search"
+                    "Website Contact Page", "Direct Search", "Reverse Phone Search",
+                    "Discovered Website", "Directory Listing"
                 ]
             if email_source not in allowed_sources:
                 log_progress(f"Autopilot: Email '{email}' found for '{name}' via '{email_source}' (skipped - not in allowed sources {allowed_sources})")

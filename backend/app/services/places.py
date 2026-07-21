@@ -455,44 +455,59 @@ async def scrape_google_maps_fallback(query: str, location: str) -> List[Dict[st
 
 
 async def query_google_places_api_new(query: str, location: str) -> List[Dict[str, Any]]:
-    """Instant query to Google Places API (New) Text Search if API Key is configured."""
+    """Instant query to Google Places API (New) Text Search if API Key is configured. Fetches up to 60 leads."""
     if not settings.GOOGLE_PLACES_API_KEY:
         return []
     url = "https://places.googleapis.com/v1/places:searchText"
     headers = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": settings.GOOGLE_PLACES_API_KEY,
-        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount"
+        "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount,nextPageToken"
     }
     search_q = f"{query} in {location}".strip()
-    payload = {
-        "textQuery": search_q,
-        "languageCode": "en",
-        "pageSize": 20
-    }
-    try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(url, headers=headers, json=payload, timeout=8.0)
-            if resp.status_code == 200:
-                data = resp.json()
-                places = data.get("places", [])
-                companies = []
-                for p in places:
-                    name = p.get("displayName", {}).get("text", "Unknown")
-                    companies.append({
-                        "name": name,
-                        "industry": query.capitalize(),
-                        "address": p.get("formattedAddress", location),
-                        "phone_number": p.get("nationalPhoneNumber", ""),
-                        "website_url": p.get("websiteUri", ""),
-                        "rating": p.get("rating"),
-                        "rating_count": p.get("userRatingCount", 0)
-                    })
-                logger.info(f"Google Places API (New): Found {len(companies)} businesses for '{search_q}'")
-                return companies
-    except Exception as e:
-        logger.warning(f"Google Places API (New) query failed: {e}")
-    return []
+    
+    all_companies = []
+    page_token = None
+    
+    async with httpx.AsyncClient() as client:
+        for _ in range(3):  # Fetch up to 3 pages (60 leads)
+            payload = {
+                "textQuery": search_q,
+                "languageCode": "en",
+                "pageSize": 20
+            }
+            if page_token:
+                payload["pageToken"] = page_token
+                
+            try:
+                resp = await client.post(url, headers=headers, json=payload, timeout=8.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    places = data.get("places", [])
+                    for p in places:
+                        name = p.get("displayName", {}).get("text")
+                        if not name: continue
+                        all_companies.append({
+                            "name": name,
+                            "industry": query.capitalize(),
+                            "address": p.get("formattedAddress", ""),
+                            "phone_number": p.get("nationalPhoneNumber", ""),
+                            "website_url": p.get("websiteUri", ""),
+                            "rating": p.get("rating"),
+                            "rating_count": p.get("userRatingCount", 0)
+                        })
+                    page_token = data.get("nextPageToken")
+                    if not page_token:
+                        break
+                else:
+                    break
+            except Exception as e:
+                logger.warning(f"Google Places API (New) query failed: {e}")
+                break
+                
+    if all_companies:
+        logger.info(f"Google Places API (New): Found {len(all_companies)} businesses for '{search_q}'")
+    return all_companies
 
 async def search_companies_google_places(
     query: str, 

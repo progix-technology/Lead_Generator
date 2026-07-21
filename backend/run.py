@@ -8,7 +8,11 @@ if BACKEND_DIR not in sys.path:
 import uvicorn
 
 if __name__ == "__main__":
+    if sys.platform == "win32":
+        import asyncio
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        
     port = int(os.environ.get("PORT", 8000))
     is_debug = os.environ.get("ENVIRONMENT", "development") == "development"
     reload_dirs = [BACKEND_DIR] if is_debug else None
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=is_debug, reload_dirs=reload_dirs)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=is_debug, reload_dirs=reload_dirs, loop="asyncio")

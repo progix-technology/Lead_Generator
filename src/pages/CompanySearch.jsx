@@ -126,8 +126,7 @@ export default function CompanySearch() {
     filteredResults.forEach((company, index) => {
       const key = company.name;
       const hasEmail = emails[key] && emails[key] !== 'Not Found' && emails[key] !== 'Error';
-      const hasWeb = company.website_url || company.discovered_website_url;
-      if (!hasWeb && !hasEmail) {
+      if (!hasEmail) {
         pending.push({ company, index });
       }
     });
@@ -441,17 +440,14 @@ export default function CompanySearch() {
                               )}
                             </div>
                           ) : (
-                            /* Only show "Find Email" button if we don't have a website (as per main motive) */
-                            !hasWebsite && (
-                              <Button 
-                                variant="secondary" 
-                                className="text-[10px] py-0.5 px-2 flex items-center gap-1 w-fit mt-1 border border-gray-200 hover:bg-gray-50 text-gray-600"
-                                onClick={() => handleFindEmail(company, index)}
-                                disabled={emailLoading[company.name]}
-                              >
-                                <FiSearch className="text-[9px]" /> {emailLoading[company.name] ? 'Searching...' : 'Find Email 🕵️'}
-                              </Button>
-                            )
+                            <Button 
+                              variant="secondary" 
+                              className="text-[10px] py-0.5 px-2 flex items-center gap-1 w-fit mt-1 border border-gray-200 hover:bg-gray-50 text-gray-600"
+                              onClick={() => handleFindEmail(company, index)}
+                              disabled={emailLoading[company.name]}
+                            >
+                              <FiSearch className="text-[9px]" /> {emailLoading[company.name] ? 'Searching...' : 'Find Email 🕵️'}
+                            </Button>
                           )}
                         </div>
                       </td>

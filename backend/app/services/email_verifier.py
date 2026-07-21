@@ -37,12 +37,14 @@ def verify_email_existence_sync(email: str, from_email: str = "progixtechnology@
         code, message = server.rcpt(email)
         server.quit()
         
-        # 250 is the success code meaning the inbox exists and is open to receive mails
         if code == 250:
             return True, "Email mailbox is active and valid"
         else:
             reason = message.decode('utf-8', errors='ignore')
             logger.info(f"SMTP Handshake check failed for {email} (Code {code}): {reason}")
+            # If the block is an IP reputation block (like Proofpoint or Spamhaus), the email is likely valid, just our IP is banned.
+            if code in (550, 554, 451, 421) and any(kw in reason.lower() for kw in ["blocked", "reputation", "spamhaus", "banned", "blacklisted", "client-ip", "rejected"]):
+                return True, f"Unverified but assumed valid (IP reputation block during check): {reason}"
             return False, f"Server returned {code}: {reason}"
             
     except smtplib.SMTPServerDisconnected:

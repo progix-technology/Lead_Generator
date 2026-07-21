@@ -459,9 +459,38 @@ async def ddg_lite_search_fanout(queries: List[str], extract_snippets: bool = Fa
             results.extend(response)
     return results
 
+async def query_yahoo_fallback(query: str) -> List[str]:
+    import httpx
+    import urllib.parse
+    from bs4 import BeautifulSoup
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9"
+    }
+    url = f"https://search.yahoo.com/search?p={urllib.parse.quote_plus(query)}"
+    links = []
+    
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, timeout=10.0)
+            soup = BeautifulSoup(response.text, 'html.parser')
+            for a in soup.find_all('a', href=True):
+                href = a['href']
+                if "/RU=" in href:
+                    ru_part = href.split("/RU=")[1].split("/RK=")[0]
+                    real_url = urllib.parse.unquote(ru_part)
+                    links.append(real_url)
+                elif href.startswith('http') and not any(x in href.lower() for x in ['yahoo.com', 'yimg.com', 'microsoft.com', 'google.com', 'bing.com']):
+                    links.append(href)
+    except Exception as e:
+        logger.warning(f"Yahoo Search fallback error: {e}")
+        
+    return links
+
 async def find_email_for_company(company_name: str, location: str, phone_number: str = "") -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
-    Lightning-fast HTTPX search via DuckDuckGo Lite to find social links and extract emails.
+    Search using DDG Lite (fast) and fallback to Yahoo search (reliable) to find social links, directories, and extract emails.
     Returns: Tuple[Optional[str], Optional[str], Optional[str]] -> (email, website_url, email_source)
     """
     clean_name = (company_name or "").replace("'", "").replace('"', '')
@@ -471,18 +500,47 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
         f"{clean_name} {location}"
     ]
     
-    logger.info(f"Agent: Fast searching DDG Lite (Fanout) for '{clean_name} {location}' socials")
+    logger.info(f"Agent: Searching DDG Lite for '{company_name}' in '{location}'...")
+    links = await ddg_lite_search_fanout(search_queries, extract_snippets=False, max_results=3)
     
+    if not links:
+        logger.warning(f"Agent: DDG Lite failed or blocked. Falling back to Yahoo search...")
+        for query in search_queries[:2]:
+            yahoo_links = await query_yahoo_fallback(query)
+            if yahoo_links:
+                links.extend(yahoo_links)
+    
+    if not links:
+        return None, None, None
+        
     facebook_url = None
     instagram_url = None
     linkedin_url = None
     discovered_web = None
 
-    links = await ddg_lite_search_fanout(search_queries, extract_snippets=False, max_results=3)
+    INVALID_WEBSITE_DOMAINS = [
+        'yelp.com', 'facebook.com', 'instagram.com', 'linkedin.com', 'twitter.com', 'x.com',
+        'apple.com', 'maps.apple.com', 'yellowpages.com', 'yp.com', 'foursquare.com', 'bbb.org',
+        'manta.com', 'tripadvisor.com', 'angi.com', 'houzz.com', 'chamberofcommerce.com',
+        'local.yahoo.com', 'mapquest.com', 'greatschools.org', 'privateschoolreview.com',
+        'childcarecenter.us', 'allbiz.com', 'schoolandcollegelistings.com', 'restaurantguru.com',
+        'placewing.com', 'mymenuweb.com', 'cloveronline.com', 'seamless.com', 'grubhub.com',
+        'doordash.com', 'ubereats.com', 'postmates.com', 'menupix.com', 'singleplatform.com',
+        'chownow.com', 'toasttab.com', 'zmenu.com', 'allmenus.com', 'sirved.com',
+        'loc8nearme.com', 'findglocal.com', 'top-rated.online', 'us-businesses.com',
+        'companycheck.com', 'dnb.com', 'bizzlist.com', 'youtube.com', 'youtubekids.com',
+        'wikipedia.org', 'wikihow.com', 'softonic.com', 'overleaf.com', 'cermati.com',
+        'merriam-webster.com', 'uidai.gov.in', 'dailymotion.com', 'konglongdao.com',
+        'glassdoor.com', 'indeed.com', 'duckduckgo.com', 'google.com', 'yahoo.com',
+        'bing.com', 'microsoft.com'
+    ]
+
+    other_candidate_urls = []
+
     for link in links:
         if not link.startswith(('http://', 'https://')): continue
         link_lower = link.lower()
-        if any(domain in link_lower for domain in ['yahoo.com', 'microsoft.com', 'google.com']): continue
+        if any(domain in link_lower for domain in ['yahoo.com', 'microsoft.com', 'google.com', 'bing.com']): continue
         
         if 'facebook.com' in link_lower and not facebook_url and '/public/' not in link_lower and '/events/' not in link_lower:
             facebook_url = link
@@ -490,6 +548,12 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
             instagram_url = link
         elif 'linkedin.com' in link_lower and not linkedin_url and ('/company/' in link_lower or '/in/' in link_lower):
             linkedin_url = link
+        else:
+            if not any(invalid in link_lower for invalid in INVALID_WEBSITE_DOMAINS):
+                if not discovered_web:
+                    discovered_web = link
+            else:
+                other_candidate_urls.append(link)
 
     from app.services import automation_worker
     
@@ -498,11 +562,9 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
         clean_fb = facebook_url.split('?')[0].rstrip('/')
         fb_pages = [clean_fb, f"{clean_fb}/about"]
         for fb_page in fb_pages:
-            if getattr(automation_worker, "cancel_requested", False): return None, None, None
             logger.info(f"Agent: Fast scanning Facebook page: {fb_page}")
             emails = await scrape_url_for_emails(None, fb_page)
             if emails:
-                logger.info(f"Agent: Scraped email '{emails[0]}' from Facebook profile.")
                 return emails[0], discovered_web, "Facebook"
 
     if instagram_url:
@@ -510,50 +572,22 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
         logger.info(f"Agent: Fast scanning Instagram page: {instagram_url}")
         emails = await scrape_url_for_emails(None, instagram_url)
         if emails:
-            logger.info(f"Agent: Scraped email '{emails[0]}' from Instagram profile.")
             return emails[0], discovered_web, "Instagram"
 
-    if linkedin_url:
+    # Scan discovered website if present
+    if discovered_web:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
-        clean_li = linkedin_url.split('?')[0].rstrip('/')
-        li_pages = [clean_li]
-        if '/company/' in clean_li:
-            li_pages.append(f"{clean_li}/about")
-        for li_page in li_pages:
-            if getattr(automation_worker, "cancel_requested", False): return None, None, None
-            logger.info(f"Agent: Fast scanning LinkedIn page: {li_page}")
-            emails = await scrape_url_for_emails(None, li_page)
-            if emails:
-                logger.info(f"Agent: Scraped email '{emails[0]}' from LinkedIn profile.")
-                return emails[0], discovered_web, "LinkedIn"
+        logger.info(f"Agent: Scanning discovered website for emails: {discovered_web}")
+        emails = await scrape_url_for_emails(None, discovered_web)
+        if emails:
+            return emails[0], discovered_web, "Discovered Website"
 
-    if getattr(automation_worker, "cancel_requested", False): return None, None, None
-    search_variants = build_direct_search_queries(clean_name, location)
-    if search_variants:
-        fanout_results = await ddg_lite_search_fanout(search_variants, extract_snippets=True, max_results=3)
-        for snippet in fanout_results:
-            matches = EMAIL_REGEX.findall(snippet)
-            emails = [m.lower() for m in matches if is_valid_email(m)]
-            if emails:
-                logger.info(f"Agent: Scraped email '{emails[0]}' directly from fanout DDG snippet.")
-                return emails[0], discovered_web, "Direct Search"
-
-    if phone_number:
+    # Scan candidate directory URLs for email
+    for cand in other_candidate_urls[:3]:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
-        try:
-            clean_phone = re.sub(r'[^\d+]', '', phone_number)
-            if len(clean_phone) >= 7:
-                phone_queries = [f'"{phone_number}" email', f'"{phone_number}" contact', f'"{phone_number}" info']
-                for phone_query in phone_queries:
-                    if getattr(automation_worker, "cancel_requested", False): return None, None, None
-                    snippets = await ddg_lite_search(phone_query, extract_snippets=True)
-                    for snippet in snippets:
-                        matches = EMAIL_REGEX.findall(snippet)
-                        emails = [m.lower() for m in matches if is_valid_email(m)]
-                        if emails:
-                            logger.info(f"Agent: Scraped email '{emails[0]}' via Reverse Phone mapping on DDG.")
-                            return emails[0], discovered_web, "Reverse Phone Search"
-        except Exception:
-            pass
+        logger.info(f"Agent: Scanning candidate directory for email: {cand}")
+        emails = await scrape_url_for_emails(None, cand)
+        if emails:
+            return emails[0], discovered_web, "Directory Listing"
 
     return None, discovered_web, None

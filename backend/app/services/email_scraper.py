@@ -400,9 +400,9 @@ import random
 _ddg_semaphore = asyncio.Semaphore(3)
 
 async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[str]:
-    """Lightning fast search using custom HTTPX scraper targeting DDG HTML."""
+    """Lightning fast search using custom HTTPX scraper targeting Yahoo (formerly DDG)."""
     async with _ddg_semaphore:
-        await asyncio.sleep(random.uniform(0.5, 1.5))
+        await asyncio.sleep(random.uniform(0.1, 0.5))
         try:
             import httpx
             from bs4 import BeautifulSoup
@@ -410,14 +410,13 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
             
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Referer": "https://duckduckgo.com/"
             }
-            url = f"https://html.duckduckgo.com/lite/?q={urllib.parse.quote_plus(query)}"
+            url = f"https://search.yahoo.com/search?p={urllib.parse.quote_plus(query)}"
             
             async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
                 r = await client.get(url, headers=headers)
-                if r.status_code not in (200, 202):
-                    logger.warning(f"DDG HTML search failed for query '{query}': HTTP {r.status_code}")
+                if r.status_code != 200:
+                    logger.warning(f"Yahoo search failed for query '{query}': HTTP {r.status_code}")
                     return []
 
                 soup = BeautifulSoup(r.text, "html.parser")
@@ -425,18 +424,18 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
                 links = []
                 
                 if extract_snippets:
-                    for snippet in soup.select(".result-snippet"):
+                    for snippet in soup.select("div.compText"):
                         snippet_text = snippet.get_text(separator=' ', strip=True)
                         if snippet_text:
                             results.append(snippet_text)
                     return results
 
-                for a in soup.select("a.result-link"):
+                for a in soup.select("div.compTitle a"):
                     href = a.get("href", "")
-                    if "uddg=" in href:
+                    if "RU=" in href:
                         try:
-                            target = href.split("uddg=")[1].split("&")[0]
-                            links.append(urllib.parse.unquote(target))
+                            target = urllib.parse.unquote(href.split("RU=")[1].split("/RK")[0])
+                            links.append(target)
                         except Exception:
                             pass
                     else:
@@ -444,7 +443,7 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
                 
                 return links
         except Exception as e:
-            logger.warning(f"Error in custom ddg_lite_search for query '{query}': {type(e).__name__} - {e}")
+            logger.warning(f"Error in custom search for query '{query}': {type(e).__name__} - {e}")
             return []
 
 async def ddg_lite_search_fanout(queries: List[str], extract_snippets: bool = False, max_results: int = 5) -> List[str]:

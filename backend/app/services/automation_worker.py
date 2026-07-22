@@ -280,11 +280,11 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 suggestions = audit_results["suggestions"]
                 
                 avg_score = (seo_score + ui_score + performance_score) / 3
-                if avg_score < 60:
+                if avg_score < 70:
                     is_redesign = True
-                    log_progress(f"Autopilot: Lead '{name}' has a weak website (Score: {avg_score:.1f}/100 < 60). Added to redesign queue.")
+                    log_progress(f"Autopilot: Lead '{name}' has website flaws (Score: {avg_score:.1f}/100 < 70). Added to redesign queue.")
                 else:
-                    log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100 >= 60). Skipping.")
+                    log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100 >= 70). Skipping.")
                     return 0
             except Exception as audit_err:
                 is_redesign = True

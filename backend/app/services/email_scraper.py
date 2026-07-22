@@ -72,7 +72,8 @@ def is_valid_email(email: str) -> bool:
         '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.wixpress.com', 
         'example.com', 'rating@', 'wix.com', 'here.com', 'domain.com', 'email.com', 'yourdomain.com', 'company.com',
         '.js', '.css', '.html', '.htm', '.php', '.asp', '.json', '.xml', '.map', '.ico', '.woff', '.woff2', '.ttf', '.eot',
-        '.pdf', '.zip', '.tar', '.gz', '.mp3', '.mp4', '.avi', '.mov', '.doc', '.docx', '.xls', '.xlsx'
+        '.pdf', '.zip', '.tar', '.gz', '.mp3', '.mp4', '.avi', '.mov', '.doc', '.docx', '.xls', '.xlsx',
+        '.mx', '.ru', '.cn', '.br', '.vn', '.id', '.th', '.pl', '.tr'
     )
     
     # 2. Invalid Prefixes (generic generic generic names, system files)

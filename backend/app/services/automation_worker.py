@@ -516,10 +516,10 @@ async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]
         return {"status": "skipped", "reason": "no_pending"}
 
     record = pending[0]
-    email = record["email"]
-    subject = record["subject"]
-    body = record["body"]
-    name = record["company_name"]
+    email = record.get("email", "")
+    subject = record.get("subject", "")
+    body = record.get("body", "")
+    name = record.get("company_name", "Valued Business")
     category = record.get("category") or "your business"
     location = record.get("location") or "your area"
     

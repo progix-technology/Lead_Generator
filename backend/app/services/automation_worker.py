@@ -360,20 +360,11 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
 
             # Redesign leads: always allow Website Contact Page (that's where their email lives)
             # Standard (no-website) leads: respect facebook_only setting
-            if is_redesign:
-                allowed_sources = [
-                    "Facebook", "Instagram", "LinkedIn",
-                    "Website Contact Page", "Direct Search", "Reverse Phone Search",
-                    "Discovered Website", "Directory Listing"
-                ]
-            elif facebook_only:
-                allowed_sources = ["Facebook"]
-            else:
-                allowed_sources = [
-                    "Facebook", "Instagram", "LinkedIn",
-                    "Website Contact Page", "Direct Search", "Reverse Phone Search",
-                    "Discovered Website", "Directory Listing"
-                ]
+            allowed_sources = [
+                "Facebook", "Instagram", "LinkedIn",
+                "Website Contact Page", "Direct Search", "Reverse Phone Search",
+                "Discovered Website", "Directory Listing"
+            ]
             if email_source not in allowed_sources:
                 log_progress(f"Autopilot: Email '{email}' found for '{name}' via '{email_source}' (skipped - not in allowed sources {allowed_sources})")
                 return 0

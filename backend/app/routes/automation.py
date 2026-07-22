@@ -207,4 +207,18 @@ async def test_ddg(query: str = "Drywall", location: str = "Canton, OH"):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# Trigger reload
+@router.get("/cron-trigger")
+@router.post("/cron-trigger")
+async def cron_trigger_endpoint(
+    background_tasks: BackgroundTasks,
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """Public cron trigger endpoint for external ping services & cron jobs (cron-job.org, UptimeRobot, etc.)."""
+    repo = AutomationRepository(db)
+    config = await repo.get_settings()
+    if not config.get("enabled", False):
+        return {"status": "disabled", "message": "Autopilot is OFF in settings."}
+    
+    background_tasks.add_task(run_automation_cycle, db)
+    return {"status": "triggered", "message": "Autopilot cycle triggered successfully in background."}
+

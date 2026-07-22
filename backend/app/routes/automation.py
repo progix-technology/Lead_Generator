@@ -84,17 +84,26 @@ async def get_queue_status(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
     """Retrieve the real-time queue counts for the live dashboard."""
-    pending_count = await repo.count_pending_records()
-    pending_standard_count = await repo.count_pending_standard_records()
-    pending_redesign_count = await repo.count_pending_redesign_records()
-    sent_today = await repo.count_records_today()
-    
-    return {
-        "pending_count": pending_count,
-        "pending_standard_count": pending_standard_count,
-        "pending_redesign_count": pending_redesign_count,
-        "sent_today": sent_today
-    }
+    try:
+        pending_count = await repo.count_pending_records()
+        pending_standard_count = await repo.count_pending_standard_records()
+        pending_redesign_count = await repo.count_pending_redesign_records()
+        sent_today = await repo.count_records_today()
+        
+        return {
+            "pending_count": pending_count,
+            "pending_standard_count": pending_standard_count,
+            "pending_redesign_count": pending_redesign_count,
+            "sent_today": sent_today
+        }
+    except Exception as e:
+        logger.warning(f"DB connection glitch in get_queue_status: {e}")
+        return {
+            "pending_count": 0,
+            "pending_standard_count": 0,
+            "pending_redesign_count": 0,
+            "sent_today": 0
+        }
 
 @router.post("/trigger", response_model=Dict[str, Any])
 async def trigger_cycle(
@@ -129,11 +138,16 @@ async def get_progress(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
     """Retrieve real-time progress logs from MongoDB for cross-process support."""
-    from app.services.automation_worker import is_batch_running
-    config = await repo.get_settings()
-    live_logs = config.get("live_logs", [])
-    is_running = config.get("enabled", False)
-    return {"progress": live_logs, "is_running": is_running}
+    try:
+        from app.services.automation_worker import is_batch_running, automation_progress
+        config = await repo.get_settings()
+        live_logs = config.get("live_logs", []) or automation_progress
+        is_running = config.get("enabled", False)
+        return {"progress": live_logs, "is_running": is_running}
+    except Exception as e:
+        logger.warning(f"DB connection glitch in get_progress: {e}")
+        from app.services.automation_worker import automation_progress
+        return {"progress": automation_progress, "is_running": True}
 
 @router.post("/resend/{record_id}", response_model=Dict[str, Any])
 async def resend_failed_email(

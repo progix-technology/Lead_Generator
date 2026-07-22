@@ -12,10 +12,17 @@ class Database:
 db_instance = Database()
 
 async def connect_to_mongo():
-    """Create database connection."""
+    """Create database connection with resilient socket/pool settings for MongoDB Atlas."""
     try:
         logger.info("Connecting to MongoDB...")
-        db_instance.client = AsyncIOMotorClient(settings.MONGODB_URI)
+        db_instance.client = AsyncIOMotorClient(
+            settings.MONGODB_URI,
+            maxIdleTimeMS=45000,
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=10000,
+            retryReads=True,
+            retryWrites=True
+        )
         db_instance.db = db_instance.client[settings.DATABASE_NAME]
         
         # Ping the database to verify connection

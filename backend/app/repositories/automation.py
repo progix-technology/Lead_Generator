@@ -235,11 +235,22 @@ class AutomationRepository:
                 doc["enable_redesign"] = True
                 update_data["enable_redesign"] = True
                 needs_update = True
-            if "redesign_subject_template" not in doc:
+            default_subject = "Helping {{company}} Strengthen Its Online Presence"
+            default_body = "Hello {{first_name}},\n\nI hope you're doing well.\n\nWhile researching businesses in the {{industry}} sector across {{location}}, I came across {{company}}. I was impressed by your local presence and the reputation you've built within your community.\n\nI noticed that customers currently rely primarily on {{current_platform}}, as there doesn't appear to be a dedicated business website. While social media and business listings are great for visibility, many customers prefer visiting a professional website before making a purchase, booking a service, or getting in touch.\n\nA dedicated website could help you:\n\n• Showcase your {{service_type}} with a clean, modern design\n• Display your contact information, business hours, and location in one place\n• Improve your visibility on Google through local SEO\n• Promote offers, announcements, and new services more effectively\n• Build greater trust with new customers and strengthen your brand online\n\nAt Progix Technologies LLP, we help businesses create modern, mobile-friendly websites designed to improve customer experience, increase online visibility, and generate more direct enquiries.\n\nIf you're interested, we'd be happy to prepare a complimentary homepage concept tailored specifically for {{company}}, along with a few ideas on how your online presence could be further enhanced.\n\nThank you for your time, and I look forward to hearing from you.\n\nBest Regards,\n\nAbhinandan Dubey\nProgix Technologies LLP\n📞 +1 (916) 702-8905\n✉️ progixtechnology@gmail.com\n🌐 https://www.progixtechnology.com/"
+            
+            if not doc.get("subject_template"):
+                doc["subject_template"] = default_subject
+                update_data["subject_template"] = default_subject
+                needs_update = True
+            if not doc.get("body_template"):
+                doc["body_template"] = default_body
+                update_data["body_template"] = default_body
+                needs_update = True
+            if not doc.get("redesign_subject_template"):
                 doc["redesign_subject_template"] = default_redesign_subject
                 update_data["redesign_subject_template"] = default_redesign_subject
                 needs_update = True
-            if "redesign_body_template" not in doc:
+            if not doc.get("redesign_body_template"):
                 doc["redesign_body_template"] = default_redesign_body
                 update_data["redesign_body_template"] = default_redesign_body
                 needs_update = True

@@ -250,8 +250,14 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         global cancel_requested
         if cancel_requested: return 0
         
-        name = _safe_str(company.get("name"), "Unknown Business")
-        address = company.get("address", "")
+        name = company.get("name", "Unknown Business")
+        
+        # Prevent duplicate outreach: check if already exists in DB early
+        existing = await co_repo.collection.find_one({"name": name})
+        if existing:
+            log_progress(f"Autopilot: Lead '{name}' is already saved in database (skipped)")
+            return 0
+
         website_url = company.get("website_url")
         enable_redesign = current_settings.get("enable_redesign", True)
 
@@ -281,19 +287,17 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                     log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100 >= 60). Skipping.")
                     return 0
             except Exception as audit_err:
-                log_progress(f"Autopilot: Website audit unavailable for '{website_url}': {audit_err}. Skipping.")
-                return 0
+                is_redesign = True
+                seo_score = 30
+                ui_score = 30
+                performance_score = 40
+                suggestions = ["Website access/security errors or SSL handshake failure detected."]
+                log_progress(f"Autopilot: Website '{website_url}' blocked audit/has SSL errors ({audit_err}). Treating as weak website redesign candidate.")
         else:
             # No custom website → primary target: standard new-website pitch
             is_redesign = False
             suggestions = ["No custom website URL was detected; this is a strong new website candidate."]
             log_progress(f"Autopilot: Lead '{name}' has no website. Queueing new website creation pitch.")
-
-        # Prevent duplicate outreach: check if already exists in DB
-        existing = await co_repo.collection.find_one({"name": name})
-        if existing:
-            log_progress(f"Autopilot: Lead '{name}' is already saved in database (skipped)")
-            return 0
 
         email = None
         discovered_web = None
@@ -349,8 +353,10 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                         log_progress(f"Autopilot: Lead '{name}' has a healthy discovered website '{discovered_web}' (Score: {avg_score:.1f}/100 >= 60). Skipping lead.")
                         return 0
                 except Exception as audit_err:
-                    log_progress(f"Autopilot: Website audit unavailable for discovered website '{discovered_web}': {audit_err}. Skipping.")
-                    return 0
+                    is_redesign = True
+                    website_url = discovered_web
+                    suggestions = ["Discovered website access/security errors detected."]
+                    log_progress(f"Autopilot: Discovered website '{discovered_web}' blocked audit ({audit_err}). Queueing redesign outreach.")
 
             if not email:
                 log_progress(f"Autopilot: No contact emails discovered for '{name}'.")

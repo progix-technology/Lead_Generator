@@ -41,12 +41,21 @@ def send_smtp_email_sync(to_email: str, subject: str, html_content: str, smtp_co
     msg.attach(part)
     
     def _try_connect(target_port: int):
+        # Force IPv4 socket resolution to prevent Linux/cloud IPv6 '[Errno 101] Network is unreachable' errors
+        ipv4_target = host
+        try:
+            addrs = socket.getaddrinfo(host, target_port, family=socket.AF_INET, type=socket.SOCK_STREAM)
+            if addrs:
+                ipv4_target = addrs[0][4][0]
+        except Exception:
+            pass
+
         if target_port == 465:
-            logger.info(f"SMTP: Connecting via Secure SSL to {host}:{target_port}...")
-            return smtplib.SMTP_SSL(host, target_port, timeout=15)
+            logger.info(f"SMTP: Connecting via Secure SSL to {host} ({ipv4_target}):{target_port}...")
+            return smtplib.SMTP_SSL(ipv4_target, target_port, timeout=15)
         else:
-            logger.info(f"SMTP: Connecting via TLS to {host}:{target_port}...")
-            srv = smtplib.SMTP(host, target_port, timeout=15)
+            logger.info(f"SMTP: Connecting via TLS to {host} ({ipv4_target}):{target_port}...")
+            srv = smtplib.SMTP(ipv4_target, target_port, timeout=15)
             srv.starttls()
             return srv
 

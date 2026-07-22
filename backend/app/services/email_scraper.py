@@ -89,7 +89,7 @@ def is_valid_email(email: str) -> bool:
         'unsubscribe', 'unsubcribe', 'subscribe', 'usercentrics', 'cookiebot', 'onetrust', 'cookie', 'optout', 'opt-out',
         'sluurpy', 'restaurantji', 'nicelocal', 'yell.com', '192.com', 'ubereats', 'just-eat', 'deliveroo', 
         'menuwithprice', 'find-us-here', 'allbusiness', 'telepages', 'hudsongrouppage', 'trustpilot', 
-        'glassdoor', 'indeed', 'bark.com', 'bark.co'
+        'glassdoor', 'indeed', 'bark.com', 'bark.co', 'uservoice.com', 'uservoice'
     )
     
     if any(email.endswith(suffix) for suffix in invalid_suffixes):

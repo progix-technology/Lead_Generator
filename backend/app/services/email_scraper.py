@@ -304,8 +304,8 @@ async def find_email_from_company_website(website_url: str) -> Tuple[Optional[st
                     pass
                 return url, None
 
-            # Concurrently crawl top 5 pages (Homepage, Contact, About)
-            tasks = [scan_single_page(u) for u in candidate_pages[:5]]
+            # Concurrently crawl top 8 priority candidate pages (Homepage, Contact, About, Staff, Team)
+            tasks = [scan_single_page(u) for u in candidate_pages[:8]]
             results = await asyncio.gather(*tasks)
 
             for page_url, html in results:
@@ -459,9 +459,10 @@ async def ddg_lite_search_fanout(queries: List[str], extract_snippets: bool = Fa
             results.extend(response)
     return results
 
-async def query_yahoo_fallback(query: str) -> List[str]:
+async def query_yahoo_fallback(query: str) -> Tuple[List[str], List[str]]:
     import httpx
     import urllib.parse
+    import re
     from bs4 import BeautifulSoup
     
     headers = {
@@ -470,11 +471,14 @@ async def query_yahoo_fallback(query: str) -> List[str]:
     }
     url = f"https://search.yahoo.com/search?p={urllib.parse.quote_plus(query)}"
     links = []
+    text_emails = []
     
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers, timeout=10.0)
             soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # 1. Extract links
             for a in soup.find_all('a', href=True):
                 href = a['href']
                 if "/RU=" in href:
@@ -483,33 +487,60 @@ async def query_yahoo_fallback(query: str) -> List[str]:
                     links.append(real_url)
                 elif href.startswith('http') and not any(x in href.lower() for x in ['yahoo.com', 'yimg.com', 'microsoft.com', 'google.com', 'bing.com']):
                     links.append(href)
+                    
+            # 2. Extract direct emails from snippet text
+            page_text = soup.get_text()
+            matches = EMAIL_REGEX.findall(page_text)
+            for m in matches:
+                m_lower = m.lower()
+                if not any(x in m_lower for x in ['yahoo', 'yimg', 'microsoft', 'google', 'png', 'jpg', 'example', 'sentry', 'bootstrap', 'w3.org']):
+                    text_emails.append(m_lower)
     except Exception as e:
         logger.warning(f"Yahoo Search fallback error: {e}")
         
-    return links
+    return links, text_emails
 
 async def find_email_for_company(company_name: str, location: str, phone_number: str = "") -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
-    Search using DDG Lite (fast) and fallback to Yahoo search (reliable) to find social links, directories, and extract emails.
+    Deep multi-engine search using DDG Lite + Yahoo Search concurrently.
+    Extracts emails from snippet text, social profiles (Facebook/Instagram/LinkedIn), custom websites, and directory listings.
     Returns: Tuple[Optional[str], Optional[str], Optional[str]] -> (email, website_url, email_source)
     """
-    clean_name = (company_name or "").replace("'", "").replace('"', '')
+    clean_name = (company_name or "").replace("'", "").replace('"', '').strip()
     search_queries = [
+        f'"{clean_name}" {location} email',
         f"{clean_name} {location} facebook",
         f"{clean_name} {location} instagram",
         f"{clean_name} {location}"
     ]
     
-    logger.info(f"Agent: Searching DDG Lite for '{company_name}' in '{location}'...")
-    links = await ddg_lite_search_fanout(search_queries, extract_snippets=False, max_results=3)
+    logger.info(f"Agent: Executing deep multi-engine search for '{company_name}' in '{location}'...")
     
-    if not links:
-        logger.warning(f"Agent: DDG Lite failed or blocked. Falling back to Yahoo search...")
-        for query in search_queries[:2]:
-            yahoo_links = await query_yahoo_fallback(query)
-            if yahoo_links:
-                links.extend(yahoo_links)
+    # 1. Run DDG & Yahoo queries concurrently for maximum coverage
+    ddg_task = ddg_lite_search_fanout(search_queries, extract_snippets=False, max_results=3)
+    yahoo_tasks = [query_yahoo_fallback(q) for q in search_queries[:3]]
     
+    results = await asyncio.gather(ddg_task, *yahoo_tasks, return_exceptions=True)
+    
+    links: List[str] = []
+    snippet_emails: List[str] = []
+    
+    for r in results:
+        if isinstance(r, Exception) or not r:
+            continue
+        if isinstance(r, list): # DDG links
+            links.extend(r)
+        elif isinstance(r, tuple): # Yahoo (links, text_emails)
+            y_links, y_emails = r
+            links.extend(y_links)
+            snippet_emails.extend(y_emails)
+
+    # 2. Check if a valid email was found directly in search result snippets
+    for se in snippet_emails:
+        if is_valid_email(se):
+            logger.info(f"Agent: Found email '{se}' directly in search result snippets!")
+            return se, None, "Direct Search"
+
     if not links:
         return None, None, None
         
@@ -558,6 +589,7 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
 
     from app.services import automation_worker
     
+    # 3. Deep Scan Facebook Profile (Main Page + /about)
     if facebook_url:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
         clean_fb = facebook_url.split('?')[0].rstrip('/')
@@ -568,6 +600,7 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
             if emails:
                 return emails[0], discovered_web, "Facebook"
 
+    # 4. Deep Scan Instagram Profile
     if instagram_url:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
         logger.info(f"Agent: Fast scanning Instagram page: {instagram_url}")
@@ -575,18 +608,24 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
         if emails:
             return emails[0], discovered_web, "Instagram"
 
-    # Scan discovered website if present
+    # 5. Deep Scan Discovered Website if present
     if discovered_web:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
-        logger.info(f"Agent: Scanning discovered website for emails: {discovered_web}")
+        logger.info(f"Agent: Deep scanning discovered website for emails: {discovered_web}")
+        try:
+            site_email, site_page = await find_email_from_company_website(discovered_web)
+            if site_email:
+                return site_email, discovered_web, "Discovered Website"
+        except Exception:
+            pass
         emails = await scrape_url_for_emails(None, discovered_web)
         if emails:
             return emails[0], discovered_web, "Discovered Website"
 
-    # Scan candidate directory URLs for email
-    for cand in other_candidate_urls[:3]:
+    # 6. Deep Scan Candidate Directory URLs for email matches
+    for cand in other_candidate_urls[:5]:
         if getattr(automation_worker, "cancel_requested", False): return None, None, None
-        logger.info(f"Agent: Scanning candidate directory for email: {cand}")
+        logger.info(f"Agent: Deep scanning candidate directory for email: {cand}")
         emails = await scrape_url_for_emails(None, cand)
         if emails:
             return emails[0], discovered_web, "Directory Listing"

@@ -11,10 +11,11 @@ logger = logging.getLogger(__name__)
 def send_smtp_email_sync(to_email: str, subject: str, html_content: str, smtp_config: Optional[dict] = None) -> bool:
     """
     Synchronous SMTP email sending.
-    Supports TLS encryption. Supports dynamic DB overrides.
+    Supports TLS & SSL encryption, auto-port failover (587 -> 465), and dynamic DB overrides.
     """
+    import socket
     # 1. Resolve credentials from custom config or fallback to .env settings
-    host = (smtp_config or {}).get("smtp_host") or settings.SMTP_HOST
+    host = (smtp_config or {}).get("smtp_host") or settings.SMTP_HOST or "smtp.gmail.com"
     port = (smtp_config or {}).get("smtp_port") or settings.SMTP_PORT or 587
     username = (smtp_config or {}).get("smtp_email") or settings.SMTP_USERNAME
     password = (smtp_config or {}).get("smtp_password") or settings.SMTP_PASSWORD
@@ -39,16 +40,29 @@ def send_smtp_email_sync(to_email: str, subject: str, html_content: str, smtp_co
     part = MIMEText(html_content, "html")
     msg.attach(part)
     
-    try:
-        # Connect using SSL if port is 465, otherwise fall back to TLS on port 587/other
-        if port == 465:
-            logger.info(f"SMTP: Connecting via Secure SSL to {host}:{port}...")
-            server = smtplib.SMTP_SSL(host, port, timeout=12)
+    def _try_connect(target_port: int):
+        if target_port == 465:
+            logger.info(f"SMTP: Connecting via Secure SSL to {host}:{target_port}...")
+            return smtplib.SMTP_SSL(host, target_port, timeout=15)
         else:
-            logger.info(f"SMTP: Connecting via TLS to {host}:{port}...")
-            server = smtplib.SMTP(host, port, timeout=12)
-            server.starttls()
-            
+            logger.info(f"SMTP: Connecting via TLS to {host}:{target_port}...")
+            srv = smtplib.SMTP(host, target_port, timeout=15)
+            srv.starttls()
+            return srv
+
+    server = None
+    try:
+        server = _try_connect(port)
+    except Exception as primary_err:
+        logger.warning(f"Primary SMTP connection to {host}:{port} failed: {primary_err}. Retrying via fallback port...")
+        fallback_port = 465 if port != 465 else 587
+        try:
+            server = _try_connect(fallback_port)
+        except Exception as fallback_err:
+            logger.error(f"Fallback SMTP connection to {host}:{fallback_port} failed: {fallback_err}")
+            raise primary_err
+
+    try:
         server.login(username, password)
         server.sendmail(from_email, to_email, msg.as_string())
         server.quit()
@@ -56,7 +70,6 @@ def send_smtp_email_sync(to_email: str, subject: str, html_content: str, smtp_co
         return True
     except Exception as e:
         logger.error(f"Failed to send SMTP email to {to_email} using host {host}: {str(e)}")
-        # Raise exception to bubble error message up to database status logs
         raise e
 
 async def send_smtp_email(to_email: str, subject: str, html_content: str, smtp_config: Optional[dict] = None) -> bool:

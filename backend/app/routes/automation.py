@@ -69,14 +69,23 @@ async def get_records(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
     """Retrieve logs of automatically sent cold outreach emails."""
-    records = await repo.get_records(skip, limit)
-    total_count = await repo.count_records()
-    today_count = await repo.count_records_today()
-    return {
-        "total_count": total_count,
-        "today_count": today_count,
-        "data": records
-    }
+    try:
+        records = await repo.get_records(skip, limit)
+        total_count = await repo.count_records()
+        today_count = await repo.count_records_today()
+        return {
+            "total_count": total_count,
+            "today_count": today_count,
+            "data": records
+        }
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"DB glitch in get_records: {e}")
+        return {
+            "total_count": 0,
+            "today_count": 0,
+            "data": []
+        }
 
 @router.get("/queue-status", response_model=Dict[str, Any])
 async def get_queue_status(

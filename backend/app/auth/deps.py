@@ -40,8 +40,14 @@ async def get_current_user(
     except JWTError:
         raise credentials_exception
         
-    # Fetch user from database
-    user = await user_repo.get_by_email(email)
+    # Fetch user from database with retry for temporary DB/DNS glitches
+    try:
+        user = await user_repo.get_by_email(email)
+    except Exception:
+        import asyncio
+        await asyncio.sleep(0.3)
+        user = await user_repo.get_by_email(email)
+
     if user is None:
         raise credentials_exception
         

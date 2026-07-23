@@ -834,61 +834,69 @@ export default function AutomatedCampaigns() {
                   </td>
                 </tr>
               ) : (
-                records.map((record) => (
-                  <tr key={record.id} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4 font-semibold text-gray-900 align-middle truncate" title={record.company_name}>
-                      {record.company_name}
-                    </td>
-                    <td className="px-6 py-4 align-middle">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-1.5 overflow-hidden">
-                          <span className="text-green-600 font-semibold text-xs font-mono truncate block" title={record.email}>
-                            {record.email}
-                          </span>
-                          {record.status === 'Sent' ? (
-                            <span className="text-[8px] bg-green-50 text-green-700 px-1 py-0.2 rounded border border-green-200 font-extrabold flex-shrink-0">
-                              ✓ Verified
+                records.map((record) => {
+                  const recordEmail = record.recipient_email || record.email || '';
+                  const recordCategory = record.category || record.metadata?.industry || 'Local Business';
+                  const recordLocation = record.location || record.metadata?.location || 'USA';
+                  const rawDate = record.sent_at || record.created_at;
+                  const dateObj = rawDate ? new Date(rawDate) : new Date();
+                  const dateStr = !isNaN(dateObj.getTime()) ? `${dateObj.toLocaleDateString()} ${dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'N/A';
+
+                  return (
+                    <tr key={record.id || record._id} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4 font-semibold text-gray-900 align-middle truncate" title={record.company_name}>
+                        {record.company_name}
+                      </td>
+                      <td className="px-6 py-4 align-middle">
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5 overflow-hidden">
+                            <span className="text-green-600 font-semibold text-xs font-mono truncate block" title={recordEmail}>
+                              {recordEmail || 'No email'}
                             </span>
-                          ) : record.status === 'Pending_Email' ? (
-                            <span className="text-[8px] bg-indigo-50 text-indigo-700 px-1 py-0.2 rounded border border-indigo-200 font-extrabold flex-shrink-0">
-                              ⧖ Queued
-                            </span>
-                          ) : record.status === 'Unverified' ? (
-                            <span className="text-[8px] bg-amber-50 text-amber-700 px-1 py-0.2 rounded border border-amber-200 font-extrabold flex-shrink-0">
-                              Unverified
-                            </span>
-                          ) : (
-                            <span className="text-[8px] bg-red-50 text-red-700 px-1 py-0.2 rounded border border-red-200 font-extrabold flex-shrink-0">
-                              ✕ Failed
-                            </span>
-                          )}
+                            {record.status === 'Sent' ? (
+                              <span className="text-[8px] bg-green-50 text-green-700 px-1 py-0.2 rounded border border-green-200 font-extrabold flex-shrink-0">
+                                ✓ Verified
+                              </span>
+                            ) : record.status === 'Pending_Email' ? (
+                              <span className="text-[8px] bg-indigo-50 text-indigo-700 px-1 py-0.2 rounded border border-indigo-200 font-extrabold flex-shrink-0">
+                                ⧖ Queued
+                              </span>
+                            ) : record.status === 'Unverified' ? (
+                              <span className="text-[8px] bg-amber-50 text-amber-700 px-1 py-0.2 rounded border border-amber-200 font-extrabold flex-shrink-0">
+                                Unverified
+                              </span>
+                            ) : (
+                              <span className="text-[8px] bg-red-50 text-red-700 px-1 py-0.2 rounded border border-red-200 font-extrabold flex-shrink-0">
+                                ✕ Failed
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[10px] text-gray-400 font-medium select-none mt-1">
+                            source: <span className="font-semibold text-gray-500">{(() => {
+                              const src = (record.email_source || "").toLowerCase();
+                              const webUrl = record.metadata?.website || "";
+                              
+                              if (src.includes("facebook")) return "facebook.com";
+                              if (src.includes("instagram")) return "instagram.com";
+                              if (src.includes("linkedin")) return "linkedin.com";
+                              
+                              if (webUrl && webUrl !== "your business" && !webUrl.includes("their website")) {
+                                return webUrl.replace(/https?:\/\/(www\.)?/, 'www.').split('/')[0];
+                              }
+                              if (recordEmail && !recordEmail.includes("gmail.com") && !recordEmail.includes("yahoo.com") && !recordEmail.includes("outlook.com")) {
+                                return `www.${recordEmail.split('@')[1] || ''}`;
+                              }
+                              return "facebook.com";
+                            })()}</span>
+                          </div>
                         </div>
-                        <div className="text-[10px] text-gray-400 font-medium select-none mt-1">
-                          source: <span className="font-semibold text-gray-500">{(() => {
-                            const src = (record.email_source || "").toLowerCase();
-                            const webUrl = record.metadata?.website || "";
-                            
-                            if (src.includes("facebook")) return "facebook.com";
-                            if (src.includes("instagram")) return "instagram.com";
-                            if (src.includes("linkedin")) return "linkedin.com";
-                            
-                            if (webUrl && webUrl !== "your business" && !webUrl.includes("their website")) {
-                              return webUrl.replace(/https?:\/\/(www\.)?/, 'www.').split('/')[0];
-                            }
-                            if (!record.email.includes("gmail.com") && !record.email.includes("yahoo.com") && !record.email.includes("outlook.com")) {
-                              return `www.${record.email.split('@')[1]}`;
-                            }
-                            return "facebook.com";
-                          })()}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600 align-middle truncate text-xs" title={`${record.category} in ${record.location}`}>
-                      {record.category} / {record.location}
-                    </td>
-                    <td className="px-6 py-4 text-gray-500 align-middle text-xs">
-                      {new Date(record.sent_at).toLocaleDateString()} {new Date(record.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </td>
+                      </td>
+                      <td className="px-6 py-4 text-gray-600 align-middle truncate text-xs" title={`${recordCategory} in ${recordLocation}`}>
+                        {recordCategory} / {recordLocation}
+                      </td>
+                      <td className="px-6 py-4 text-gray-500 align-middle text-xs">
+                        {dateStr}
+                      </td>
                     <td className="px-6 py-4 text-right align-middle">
                       <div className="flex items-center justify-end gap-2">
                         <button
@@ -934,7 +942,8 @@ export default function AutomatedCampaigns() {
                       </div>
                     </td>
                   </tr>
-                ))
+                );
+              })
               )}
             </tbody>
           </table>
@@ -960,7 +969,7 @@ export default function AutomatedCampaigns() {
             <div className="p-6 space-y-4 text-sm text-gray-800">
               <div>
                 <span className="font-semibold text-gray-400 text-xs block mb-0.5">Recipients:</span>
-                <span className="font-mono text-gray-700">{selectedRecord.company_name} ({selectedRecord.email})</span>
+                <span className="font-mono text-gray-700">{selectedRecord.company_name} ({selectedRecord.recipient_email || selectedRecord.email})</span>
               </div>
 
               <div>

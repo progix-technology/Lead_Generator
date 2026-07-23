@@ -369,10 +369,10 @@ export default function AutomatedCampaigns() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0 flex-wrap lg:flex-nowrap">
           {/* Autopilot Master Switch */}
-          <div className="flex items-center bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl shadow-sm">
-            <span className="text-xs font-bold text-slate-200 mr-3 flex items-center gap-1.5">
+          <div className="flex items-center bg-slate-800/90 border border-slate-700/80 px-4 h-10 rounded-xl shadow-sm whitespace-nowrap">
+            <span className="text-xs font-bold text-slate-200 mr-2.5 flex items-center gap-1.5">
               <FiCpu className={`${enabled ? 'text-blue-400 animate-spin' : 'text-slate-400'}`} style={{ animationDuration: '3s' }} />
               Autopilot Status:
             </span>
@@ -389,10 +389,10 @@ export default function AutomatedCampaigns() {
 
           <Button
             variant="secondary"
-            className="flex items-center gap-1.5 shadow-sm text-xs py-2.5 px-4 border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 font-semibold cursor-pointer"
+            className="flex items-center justify-center gap-1.5 shadow-sm text-xs h-10 px-4 border border-slate-700/80 bg-slate-800/90 text-slate-200 hover:bg-slate-700 font-semibold cursor-pointer whitespace-nowrap rounded-xl"
             onClick={() => setShowConsole(prev => !prev)}
           >
-            <span className="flex items-center gap-1">
+            <span className="flex items-center gap-1.5">
               <span className={`h-1.5 w-1.5 rounded-full ${showConsole ? 'bg-green-400 animate-pulse' : 'bg-slate-400'}`}></span>
               {showConsole ? 'Hide Terminal 📺' : 'Show Terminal 📺'}
             </span>
@@ -400,7 +400,7 @@ export default function AutomatedCampaigns() {
 
           <Button
             variant="primary"
-            className="flex items-center gap-1.5 shadow-md text-xs py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer border border-blue-500/50"
+            className="flex items-center justify-center gap-1.5 shadow-md text-xs h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer border border-blue-500/50 whitespace-nowrap rounded-xl"
             onClick={handleRunCycleNow}
             disabled={triggeringCycle || !enabled || manualRunLocked}
           >

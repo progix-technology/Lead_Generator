@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import Card from '../components/Card';
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -9,12 +10,6 @@ const AUTOPILOT_RUN_LOCK_KEY = 'autopilot_manual_run_locked';
 
 export default function AutomatedCampaigns() {
   const [enabled, setEnabled] = useState(false);
-  const [subjectTemplate, setSubjectTemplate] = useState('');
-  const [bodyTemplate, setBodyTemplate] = useState('');
-  const [redesignSubjectTemplate, setRedesignSubjectTemplate] = useState('');
-  const [redesignBodyTemplate, setRedesignBodyTemplate] = useState('');
-  const [selectedCountryTab, setSelectedCountryTab] = useState('USA');
-  const [countryTemplates, setCountryTemplates] = useState({});
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [facebookOnly, setFacebookOnly] = useState(false);
@@ -143,15 +138,6 @@ export default function AutomatedCampaigns() {
         localStorage.removeItem(AUTOPILOT_RUN_LOCK_KEY);
       }
 
-      const cTmpls = settings.country_templates || {};
-      setCountryTemplates(cTmpls);
-
-      const activeTmpl = cTmpls[selectedCountryTab] || cTmpls['USA'] || {};
-      setSubjectTemplate(activeTmpl.subject_template || settings.subject_template || '');
-      setBodyTemplate(activeTmpl.body_template || settings.body_template || '');
-      setRedesignSubjectTemplate(activeTmpl.redesign_subject_template || settings.redesign_subject_template || '');
-      setRedesignBodyTemplate(activeTmpl.redesign_body_template || settings.redesign_body_template || '');
-
       setCategories(settings.categories || []);
       setLocations(settings.locations || []);
       setFacebookOnly(!!settings.facebook_only);
@@ -188,28 +174,6 @@ export default function AutomatedCampaigns() {
     }
   };
 
-  const handleCountryTabChange = (newTab) => {
-    // 1. Save current active tab inputs into countryTemplates state
-    const updated = {
-      ...countryTemplates,
-      [selectedCountryTab]: {
-        subject_template: subjectTemplate,
-        body_template: bodyTemplate,
-        redesign_subject_template: redesignSubjectTemplate,
-        redesign_body_template: redesignBodyTemplate
-      }
-    };
-    setCountryTemplates(updated);
-    setSelectedCountryTab(newTab);
-    
-    // 2. Load newTab values into form fields
-    const nextTmpl = updated[newTab] || {};
-    setSubjectTemplate(nextTmpl.subject_template || '');
-    setBodyTemplate(nextTmpl.body_template || '');
-    setRedesignSubjectTemplate(nextTmpl.redesign_subject_template || '');
-    setRedesignBodyTemplate(nextTmpl.redesign_body_template || '');
-  };
-
   const handleAddCategory = (e) => {
     e.preventDefault();
     if (newCategory.trim() && !categories.includes(newCategory.trim())) {
@@ -238,25 +202,10 @@ export default function AutomatedCampaigns() {
     setSavingSettings(true);
     setError('');
     setSuccessMsg('');
-    
-    const finalCountryTemplates = {
-      ...countryTemplates,
-      [selectedCountryTab]: {
-        subject_template: subjectTemplate,
-        body_template: bodyTemplate,
-        redesign_subject_template: redesignSubjectTemplate,
-        redesign_body_template: redesignBodyTemplate
-      }
-    };
 
     try {
       await automationService.updateSettings({
         enabled,
-        subject_template: subjectTemplate,
-        body_template: bodyTemplate,
-        redesign_subject_template: redesignSubjectTemplate,
-        redesign_body_template: redesignBodyTemplate,
-        country_templates: finalCountryTemplates,
         categories,
         locations,
         facebook_only: facebookOnly,
@@ -265,7 +214,6 @@ export default function AutomatedCampaigns() {
         daily_email_limit: parseInt(dailyEmailLimit) || 20,
         batch_email_limit: parseInt(batchEmailLimit) || 5
       });
-      setCountryTemplates(finalCountryTemplates);
       setSuccessMsg('Autopilot configurations saved successfully!');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
@@ -616,12 +564,12 @@ export default function AutomatedCampaigns() {
                   <p className="text-xs text-gray-500">Manage localized outreach pitches for 🇺🇸 USA, 🇬🇧 UK, and 🇦🇪 Dubai (UAE) on the dedicated templates page.</p>
                 </div>
               </div>
-              <a
-                href="/country-templates"
+              <Link
+                to="/country-templates"
                 className="inline-flex items-center justify-center px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-all shadow-sm whitespace-nowrap"
               >
                 Manage Country Templates ➔
-              </a>
+              </Link>
             </div>
 
             <div className="flex items-center justify-between pt-2 border-t border-gray-100">

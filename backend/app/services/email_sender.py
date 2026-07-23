@@ -30,6 +30,11 @@ def send_smtp_email_sync(to_email: str, subject: str, html_content: str, smtp_co
     if not host or not username or not password:
         logger.warning("SMTP configurations are missing (neither in DB settings nor in .env). Skipping email delivery.")
         return False
+
+    if password:
+        password = str(password).strip()
+        if "gmail" in str(host).lower():
+            password = password.replace(" ", "")
         
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject

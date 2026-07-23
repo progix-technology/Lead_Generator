@@ -251,18 +251,27 @@ export default function CompanySearch() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-800">Smart Lead Finder</h2>
-          <Button 
-            variant={showFilterPanel ? "primary" : "secondary"} 
-            className="flex items-center gap-2 text-xs py-1.5 px-3"
-            onClick={() => setShowFilterPanel(prev => !prev)}
-          >
-            <FiFilter /> {showFilterPanel ? 'Hide Filters' : 'Filters'}
-          </Button>
+      {/* Top Dark Banner Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl text-white shadow-xl">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 bg-blue-500/20 text-blue-400 rounded-xl text-xl">🔍</span>
+            <h1 className="text-2xl font-black tracking-tight">Smart Lead Finder & Social Scraper</h1>
+          </div>
+          <p className="text-sm text-slate-300">
+            Search Google Places for local businesses, extract social emails (Facebook, Instagram, LinkedIn), and filter leads.
+          </p>
         </div>
-        
+        <Button 
+          variant={showFilterPanel ? "primary" : "secondary"} 
+          className="flex items-center gap-2 text-xs py-2.5 px-4 font-bold rounded-xl shadow-md border border-slate-700 bg-slate-800 text-white hover:bg-slate-700 cursor-pointer self-start lg:self-auto"
+          onClick={() => setShowFilterPanel(prev => !prev)}
+        >
+          <FiFilter /> {showFilterPanel ? 'Hide Advanced Filters' : 'Advanced Filters'}
+        </Button>
+      </div>
+
+      <Card>
         {error && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm font-medium">
             {error}

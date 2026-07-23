@@ -13,8 +13,17 @@ const mockLogs = [
 export default function Logs() {
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">System Logs</h2>
+      {/* Top Dark Banner Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl text-white shadow-xl">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 bg-blue-500/20 text-blue-400 rounded-xl text-xl">📋</span>
+            <h1 className="text-2xl font-black tracking-tight">System Audit Logs</h1>
+          </div>
+          <p className="text-sm text-slate-300">
+            View system activity, authentication events, and audit logs.
+          </p>
+        </div>
       </div>
 
       <Card className="p-0 overflow-hidden">

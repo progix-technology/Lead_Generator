@@ -118,15 +118,20 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 font-inter">
-      {/* Header bar with welcome message & manual refresh */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800 tracking-tight">Outreach Performance Dashboard</h2>
-          <p className="text-gray-500 text-xs mt-1">Real-time statistics of cold email dispatches, categories, and target locations.</p>
+      {/* Header bar with dark theme banner & manual refresh */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl text-white shadow-xl">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 bg-blue-500/20 text-blue-400 rounded-xl text-xl">🏠</span>
+            <h1 className="text-2xl font-black tracking-tight">Outreach Performance Dashboard</h1>
+          </div>
+          <p className="text-sm text-slate-300">
+            Real-time conversion metrics, day-wise mountain chart dispatches, and category breakdown analytics.
+          </p>
         </div>
         <button
           onClick={fetchDashboardData}
-          className="text-xs bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-xl font-semibold hover:bg-blue-100 transition-colors shadow-sm cursor-pointer whitespace-nowrap self-start md:self-auto"
+          className="text-xs bg-blue-600 hover:bg-blue-700 text-white border border-blue-500/50 px-4 py-2.5 rounded-xl font-bold transition-all shadow-md cursor-pointer whitespace-nowrap self-start lg:self-auto flex items-center gap-1.5"
         >
           🔄 Refresh Metrics
         </button>

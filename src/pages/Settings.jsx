@@ -161,9 +161,17 @@ export default function Settings() {
 
   return (
     <div className="max-w-4xl space-y-8 font-inter">
-      <div>
-        <h2 className="text-xl font-bold text-gray-800 tracking-tight">Credentials & Settings</h2>
-        <p className="text-gray-500 text-xs mt-1">Configure your custom OpenRouter API Key and SMTP credentials to send outreach emails directly from your own domain.</p>
+      {/* Top Dark Banner Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl text-white shadow-xl">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 bg-blue-500/20 text-blue-400 rounded-xl text-xl">⚙️</span>
+            <h1 className="text-2xl font-black tracking-tight">Credentials & System Settings</h1>
+          </div>
+          <p className="text-sm text-slate-300">
+            Configure OpenRouter AI key, SMTP email mailer credentials, and update user account profile.
+          </p>
+        </div>
       </div>
 
       {error && (

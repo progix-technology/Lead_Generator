@@ -54,16 +54,22 @@ const Companies = () => {
 
   return (
     <div className="space-y-6 font-inter">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">My Companies</h1>
-          <p className="text-gray-500 text-sm mt-1">Manage and track your generated leads.</p>
+      {/* Top Dark Banner Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl text-white shadow-xl">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 bg-blue-500/20 text-blue-400 rounded-xl text-xl">🏢</span>
+            <h1 className="text-2xl font-black tracking-tight">Saved Companies & Lead Directory</h1>
+          </div>
+          <p className="text-sm text-slate-300">
+            Manage, filter, and track all your discovered local business leads.
+          </p>
         </div>
         <Link
           to="/search"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md transition-all whitespace-nowrap self-start lg:self-auto cursor-pointer"
         >
-          + Find New Leads
+          🔍 Search New Companies
         </Link>
       </div>
 

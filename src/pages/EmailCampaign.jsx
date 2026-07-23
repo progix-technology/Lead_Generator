@@ -386,14 +386,20 @@ Progix Technologies LLP
 
   return (
     <div className="space-y-6 relative font-inter">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-800 font-inter">Email Campaigns</h2>
-          <p className="text-gray-500 text-sm mt-1">Send cold outreach emails automatically to your saved leads.</p>
+      {/* Top Dark Banner Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl text-white shadow-xl">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 bg-blue-500/20 text-blue-400 rounded-xl text-xl">✉️</span>
+            <h1 className="text-2xl font-black tracking-tight">Manual & Bulk Email Outreach</h1>
+          </div>
+          <p className="text-sm text-slate-300">
+            Craft custom email pitches with dynamic tags or trigger single-lead direct outreach.
+          </p>
         </div>
         <Button 
           variant="primary" 
-          className="flex items-center gap-2 shadow-sm"
+          className="flex items-center gap-2 shadow-md bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl border border-blue-500/50 cursor-pointer self-start lg:self-auto"
           onClick={handleSendCampaign}
           disabled={loading || (targetCompanyId && !targetCompany)}
         >

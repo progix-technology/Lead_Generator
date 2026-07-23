@@ -355,20 +355,25 @@ export default function AutomatedCampaigns() {
 
   return (
     <div className="space-y-6 font-inter">
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-            Autopilot Outreach <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-bold select-none">BETA</span>
-          </h1>
-          <p className="text-gray-500 text-sm mt-1">Autonomous Google Maps lead generation & Facebook-scraped outreach.</p>
+      {/* Top Dark Banner Header */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl text-white shadow-xl">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 bg-blue-500/20 text-blue-400 rounded-xl text-xl">🤖</span>
+            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
+              Autopilot Outreach <span className="text-xs bg-blue-500/30 text-blue-300 px-2.5 py-0.5 rounded-full font-bold select-none border border-blue-400/30">BETA</span>
+            </h1>
+          </div>
+          <p className="text-sm text-slate-300">
+            Autonomous Google Maps lead generation, social email scraping & multi-country automated dispatches.
+          </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {/* Autopilot Master Switch */}
-          <div className="flex items-center bg-white border border-gray-200 px-4 py-2 rounded-xl shadow-sm">
-            <span className="text-sm font-semibold text-gray-700 mr-3 flex items-center gap-1.5">
-              <FiCpu className={`${enabled ? 'text-blue-500 animate-spin' : 'text-gray-400'}`} style={{ animationDuration: '3s' }} />
+          <div className="flex items-center bg-slate-800 border border-slate-700 px-4 py-2 rounded-xl shadow-sm">
+            <span className="text-xs font-bold text-slate-200 mr-3 flex items-center gap-1.5">
+              <FiCpu className={`${enabled ? 'text-blue-400 animate-spin' : 'text-slate-400'}`} style={{ animationDuration: '3s' }} />
               Autopilot Status:
             </span>
             <label className="relative inline-flex items-center cursor-pointer">
@@ -378,24 +383,24 @@ export default function AutomatedCampaigns() {
                 checked={enabled}
                 onChange={(e) => handleToggleAutopilot(e.target.checked)}
               />
-              <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+              <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
           </div>
 
           <Button
             variant="secondary"
-            className="flex items-center gap-1.5 shadow-sm text-xs py-2.5 px-4 border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold cursor-pointer"
+            className="flex items-center gap-1.5 shadow-sm text-xs py-2.5 px-4 border border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 font-semibold cursor-pointer"
             onClick={() => setShowConsole(prev => !prev)}
           >
             <span className="flex items-center gap-1">
-              <span className={`h-1.5 w-1.5 rounded-full ${showConsole ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
+              <span className={`h-1.5 w-1.5 rounded-full ${showConsole ? 'bg-green-400 animate-pulse' : 'bg-slate-400'}`}></span>
               {showConsole ? 'Hide Terminal 📺' : 'Show Terminal 📺'}
             </span>
           </Button>
 
           <Button
             variant="primary"
-            className="flex items-center gap-1.5 shadow-sm text-xs py-2.5 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 cursor-pointer"
+            className="flex items-center gap-1.5 shadow-md text-xs py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer border border-blue-500/50"
             onClick={handleRunCycleNow}
             disabled={triggeringCycle || !enabled || manualRunLocked}
           >

@@ -36,7 +36,18 @@ const DEFAULT_SCHEDULES = {
     flag: "🇦🇪",
     start_time_ist: "10:00 AM",
     end_time_ist: "02:00 PM",
-    locations: ["Dubai, UAE", "Abu Dhabi, UAE", "Sharjah, UAE", "Ajman, UAE", "Ras Al Khaimah, UAE"]
+    locations: [
+      "Dubai, UAE", "Abu Dhabi, UAE", "Sharjah, UAE", "Ajman, UAE", "Ras Al Khaimah, UAE",
+      "Al Ain, UAE", "Fujairah, UAE", "Umm Al Quwain, UAE", "Khor Fakkan, UAE", "Dibba Al Fujairah, UAE",
+      "Madinat Zayed, UAE", "Kalba, UAE", "Mussafah, UAE", "Jebel Ali, UAE", "Dubai Marina, UAE",
+      "Business Bay, UAE", "Deira, UAE", "Bur Dubai, UAE", "Al Barsha, UAE", "Jumeirah, UAE",
+      "Dubai Silicon Oasis, UAE", "Dubai Investment Park, UAE", "Dubai South, UAE", "International City, UAE", "Al Nahda, UAE",
+      "Al Qusais, UAE", "Al Quoz, UAE", "Motor City, UAE", "Jumeirah Lake Towers, UAE", "Dubai Internet City, UAE",
+      "Dubai Media City, UAE", "Al Karama, UAE", "Satwa, UAE", "Discovery Gardens, UAE", "Mirdif, UAE",
+      "Al Rigga, UAE", "Muwaileh, UAE", "Al Majaz, UAE", "Al Khan, UAE", "Al Taawun, UAE",
+      "Industrial Area Sharjah, UAE", "Hamriyah, UAE", "Al Dhaid, UAE", "Masdar City, UAE", "Yas Island, UAE",
+      "Khalifa City, UAE", "Al Reef, UAE", "Bani Yas, UAE", "Al Shamkha, UAE", "Al Raha, UAE"
+    ]
   }
 };
 

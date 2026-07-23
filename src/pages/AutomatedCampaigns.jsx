@@ -231,10 +231,6 @@ export default function AutomatedCampaigns() {
     try {
       await automationService.updateSettings({
         enabled: checked,
-        subject_template: subjectTemplate,
-        body_template: bodyTemplate,
-        redesign_subject_template: redesignSubjectTemplate,
-        redesign_body_template: redesignBodyTemplate,
         categories,
         locations,
         facebook_only: facebookOnly,

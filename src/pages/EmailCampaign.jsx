@@ -49,7 +49,7 @@ Best Regards,
 Abhinandan Dubey
 Progix Technologies LLP
 📞 +1 (916) 702-8905
-✉️ progixtechnology@gmail.com
+✉️ info@progixtechnology.com
 🌐 https://www.progixtechnology.com/`);
   
   const [targetCompany, setTargetCompany] = useState(null);

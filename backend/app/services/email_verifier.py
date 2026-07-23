@@ -7,7 +7,7 @@ from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
-def verify_email_existence_sync(email: str, from_email: str = "progixtechnology@gmail.com") -> Tuple[bool, str]:
+def verify_email_existence_sync(email: str, from_email: str = "info@progixtechnology.com") -> Tuple[bool, str]:
     """
     Performs an SMTP handshake check to verify if the email mailbox exists.
     Does NOT send an actual email.

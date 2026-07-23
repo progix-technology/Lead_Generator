@@ -29,7 +29,18 @@ const DEFAULT_SCHEDULES = {
     flag: "🇬🇧",
     start_time_ist: "03:00 PM",
     end_time_ist: "09:00 PM",
-    locations: ["London, UK", "Manchester, UK", "Birmingham, UK", "Leeds, UK", "Glasgow, UK", "Liverpool, UK", "Edinburgh, UK", "Bristol, UK"]
+    locations: [
+      "London, England", "Birmingham, England", "Manchester, England", "Leeds, England", "Glasgow, Scotland",
+      "Liverpool, England", "Bristol, England", "Edinburgh, Scotland", "Sheffield, England", "Leicester, England",
+      "Nottingham, England", "Newcastle upon Tyne, England", "Cardiff, Wales", "Coventry, England", "Reading, England",
+      "Southampton, England", "Milton Keynes, England", "Brighton, England", "Cambridge, England", "Oxford, England",
+      "Belfast, Northern Ireland", "Derby, England", "Stoke-on-Trent, England", "Wolverhampton, England", "Portsmouth, England",
+      "York, England", "Exeter, England", "Norwich, England", "Preston, England", "Hull, England",
+      "Swansea, Wales", "Aberdeen, Scotland", "Dundee, Scotland", "Luton, England", "Blackpool, England",
+      "Chelmsford, England", "Peterborough, England", "Northampton, England", "Ipswich, England", "Maidstone, England",
+      "Slough, England", "Watford, England", "Guildford, England", "Warrington, England", "Cheltenham, England",
+      "Bath, England", "Lincoln, England", "Carlisle, England", "Canterbury, England", "Lancaster, England"
+    ]
   },
   UAE: {
     country_name: "Dubai (UAE)",

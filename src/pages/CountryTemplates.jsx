@@ -9,22 +9,22 @@ const DEFAULT_SCHEDULES = {
   USA: {
     country_name: "United States",
     flag: "🇺🇸",
-    start_time_ist: "01:00",
-    end_time_ist: "04:00",
+    start_time_ist: "01:00 AM",
+    end_time_ist: "04:00 AM",
     locations: ["New York, NY", "Los Angeles, CA", "Chicago, IL", "Houston, TX", "Phoenix, AZ", "Dallas, TX", "Miami, FL"]
   },
   UK: {
     country_name: "United Kingdom",
     flag: "🇬🇧",
-    start_time_ist: "15:00",
-    end_time_ist: "21:00",
+    start_time_ist: "03:00 PM",
+    end_time_ist: "09:00 PM",
     locations: ["London, UK", "Manchester, UK", "Birmingham, UK", "Leeds, UK", "Glasgow, UK", "Liverpool, UK", "Edinburgh, UK", "Bristol, UK"]
   },
   UAE: {
     country_name: "Dubai (UAE)",
     flag: "🇦🇪",
-    start_time_ist: "10:00",
-    end_time_ist: "14:00",
+    start_time_ist: "10:00 AM",
+    end_time_ist: "02:00 PM",
     locations: ["Dubai, UAE", "Abu Dhabi, UAE", "Sharjah, UAE", "Ajman, UAE", "Ras Al Khaimah, UAE"]
   }
 };
@@ -44,8 +44,8 @@ export default function CountryTemplates() {
   const [newCountryName, setNewCountryName] = useState('');
   const [newCountryCode, setNewCountryCode] = useState('');
   const [newCountryFlag, setNewCountryFlag] = useState('🌐');
-  const [newStartTime, setNewStartTime] = useState('10:00');
-  const [newEndTime, setNewEndTime] = useState('18:00');
+  const [newStartTime, setNewStartTime] = useState('10:00 AM');
+  const [newEndTime, setNewEndTime] = useState('06:00 PM');
   const [newCityInput, setNewCityInput] = useState('');
   const [newCitiesList, setNewCitiesList] = useState([]);
 
@@ -116,7 +116,6 @@ export default function CountryTemplates() {
   };
 
   const handleCountryTabChange = (newTab) => {
-    // 1. Save current active tab inputs into countryTemplates
     const updatedTemplates = {
       ...countryTemplates,
       [selectedCountryTab]: {
@@ -129,7 +128,6 @@ export default function CountryTemplates() {
     setCountryTemplates(updatedTemplates);
     setSelectedCountryTab(newTab);
 
-    // 2. Load target tab values
     const nextTmpl = updatedTemplates[newTab] || {};
     setSubjectTemplate(nextTmpl.subject_template || '');
     setBodyTemplate(nextTmpl.body_template || '');
@@ -165,7 +163,6 @@ export default function CountryTemplates() {
     }, 0);
   };
 
-  // Add City to active tab's schedule
   const handleAddCityToActiveCountry = (e) => {
     e.preventDefault();
     if (!activeCityInput.trim()) return;
@@ -210,7 +207,6 @@ export default function CountryTemplates() {
     }));
   };
 
-  // Handle Adding New Country Modal
   const handleAddNewCityToModalList = (e) => {
     e.preventDefault();
     if (!newCityInput.trim()) return;
@@ -340,8 +336,8 @@ export default function CountryTemplates() {
   const activeSchedule = countrySchedules[selectedCountryTab] || {
     country_name: selectedCountryTab,
     flag: '🌐',
-    start_time_ist: '00:00',
-    end_time_ist: '23:59',
+    start_time_ist: '10:00 AM',
+    end_time_ist: '06:00 PM',
     locations: []
   };
 
@@ -355,7 +351,7 @@ export default function CountryTemplates() {
             <h1 className="text-2xl font-black tracking-tight">Multi-Country Email Templates & Scheduler</h1>
           </div>
           <p className="text-sm text-slate-300">
-            Configure target country operating schedules, target city pools, and custom email pitches.
+            Configure target country operating schedules (AM/PM), target city pools, and custom email pitches.
           </p>
         </div>
 
@@ -404,7 +400,7 @@ export default function CountryTemplates() {
                 </span>
               </h2>
               <span className="text-xs text-gray-500 block">
-                Define the specific IST time slot and cities to target for this country.
+                Define the specific IST time slot (AM/PM) and cities to target for this country.
               </span>
             </div>
           </div>
@@ -420,34 +416,64 @@ export default function CountryTemplates() {
           </div>
         </div>
 
-        {/* Schedule Time Slot Inputs */}
+        {/* Schedule Time Slot Inputs with AM/PM support */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-white p-4 rounded-xl border border-blue-100">
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
-              <FiClock className="text-blue-500" /> Start Time (IST)
+            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1"><FiClock className="text-blue-500" /> Start Time (IST)</span>
+              <span className="text-[10px] font-normal text-gray-400">Specify AM/PM e.g. 10:00 AM</span>
             </label>
-            <input
-              type="text"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none"
-              placeholder="e.g. 10:00"
-              value={activeSchedule.start_time_ist || ''}
-              onChange={(e) => handleScheduleTimeChange('start_time_ist', e.target.value)}
-            />
-            <span className="text-[11px] text-gray-400 mt-1 block">Format HH:MM (e.g. 10:00 for 10:00 AM)</span>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 focus:border-blue-500 focus:outline-none"
+                placeholder="e.g. 10:00 AM"
+                value={activeSchedule.start_time_ist || ''}
+                onChange={(e) => handleScheduleTimeChange('start_time_ist', e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span className="text-[10px] text-gray-400 font-medium">Quick Presets:</span>
+              {['10:00 AM', '03:00 PM', '06:00 PM', '01:00 AM'].map(preset => (
+                <button
+                  type="button"
+                  key={preset}
+                  onClick={() => handleScheduleTimeChange('start_time_ist', preset)}
+                  className="px-2 py-0.5 text-[10px] font-semibold bg-gray-100 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded border border-gray-200 cursor-pointer transition-colors"
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center gap-1">
-              <FiClock className="text-blue-500" /> End Time (IST)
+            <label className="block text-xs font-bold text-gray-700 mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1"><FiClock className="text-blue-500" /> End Time (IST)</span>
+              <span className="text-[10px] font-normal text-gray-400">Specify AM/PM e.g. 02:00 PM</span>
             </label>
-            <input
-              type="text"
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none"
-              placeholder="e.g. 14:00"
-              value={activeSchedule.end_time_ist || ''}
-              onChange={(e) => handleScheduleTimeChange('end_time_ist', e.target.value)}
-            />
-            <span className="text-[11px] text-gray-400 mt-1 block">Format HH:MM (e.g. 14:00 for 02:00 PM)</span>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 focus:border-blue-500 focus:outline-none"
+                placeholder="e.g. 02:00 PM"
+                value={activeSchedule.end_time_ist || ''}
+                onChange={(e) => handleScheduleTimeChange('end_time_ist', e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              <span className="text-[10px] text-gray-400 font-medium">Quick Presets:</span>
+              {['02:00 PM', '09:00 PM', '11:00 PM', '04:00 AM'].map(preset => (
+                <button
+                  type="button"
+                  key={preset}
+                  onClick={() => handleScheduleTimeChange('end_time_ist', preset)}
+                  className="px-2 py-0.5 text-[10px] font-semibold bg-gray-100 hover:bg-blue-50 text-gray-600 hover:text-blue-600 rounded border border-gray-200 cursor-pointer transition-colors"
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -681,22 +707,28 @@ export default function CountryTemplates() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
-                  <Input
-                    label="Start Time (IST)"
-                    placeholder="e.g. 18:00"
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Start Time (IST)</label>
+                  <input
+                    type="text"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 focus:border-blue-500 focus:outline-none"
+                    placeholder="e.g. 06:00 PM"
                     value={newStartTime}
                     onChange={(e) => setNewStartTime(e.target.value)}
                     required
                   />
+                  <span className="text-[10px] text-gray-400">Specify with AM/PM (e.g., 06:00 PM)</span>
                 </div>
                 <div>
-                  <Input
-                    label="End Time (IST)"
-                    placeholder="e.g. 23:00"
+                  <label className="block text-xs font-bold text-gray-700 mb-1">End Time (IST)</label>
+                  <input
+                    type="text"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-semibold text-gray-800 focus:border-blue-500 focus:outline-none"
+                    placeholder="e.g. 11:00 PM"
                     value={newEndTime}
                     onChange={(e) => setNewEndTime(e.target.value)}
                     required
                   />
+                  <span className="text-[10px] text-gray-400">Specify with AM/PM (e.g., 11:00 PM)</span>
                 </div>
               </div>
 

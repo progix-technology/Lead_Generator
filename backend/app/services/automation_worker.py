@@ -72,11 +72,34 @@ def log_progress(msg: str):
     if len(automation_progress) > 200:
         automation_progress = automation_progress[-200:]
 
+def parse_time_to_minutes(time_str: str) -> int:
+    """Parses 12-hour AM/PM ('10:00 AM', '02:00 PM') and 24-hour ('14:00') time strings into minute of day (0-1439)."""
+    if not time_str:
+        return 0
+    clean = str(time_str).strip().upper()
+    try:
+        if "AM" in clean or "PM" in clean:
+            is_pm = "PM" in clean
+            clean_time = clean.replace("AM", "").replace("PM", "").strip()
+            parts = clean_time.split(":")
+            h = int(parts[0]) % 12
+            m = int(parts[1]) if len(parts) > 1 else 0
+            if is_pm:
+                h += 12
+            return h * 60 + m
+        else:
+            parts = clean.split(":")
+            h = int(parts[0])
+            m = int(parts[1]) if len(parts) > 1 else 0
+            return h * 60 + m
+    except Exception:
+        return 0
+
 def get_active_country_schedule(settings: Dict[str, Any]) -> tuple[str, List[str]]:
     """
     Checks current IST time and matches against country_schedules in settings.
+    Supports both 12-hour AM/PM and 24-hour time formats seamlessly.
     Returns (active_country_code, active_locations_list).
-    Strictly uses user-configured locations from MongoDB settings without hardcoded fallbacks.
     """
     from datetime import datetime, timezone, timedelta
     schedules = settings.get("country_schedules") or {}
@@ -90,11 +113,8 @@ def get_active_country_schedule(settings: Dict[str, Any]) -> tuple[str, List[str
             start_str = schedule.get("start_time_ist", "00:00")
             end_str = schedule.get("end_time_ist", "23:59")
             
-            s_h, s_m = map(int, start_str.split(":"))
-            e_h, e_m = map(int, end_str.split(":"))
-            
-            start_mins = s_h * 60 + s_m
-            end_mins = e_h * 60 + e_m
+            start_mins = parse_time_to_minutes(start_str)
+            end_mins = parse_time_to_minutes(end_str)
             
             if start_mins <= end_mins:
                 if start_mins <= current_minutes <= end_mins:
@@ -102,7 +122,7 @@ def get_active_country_schedule(settings: Dict[str, Any]) -> tuple[str, List[str
                     if locs:
                         return country_code, locs
             else:
-                # Overnight time range
+                # Overnight time range (e.g. 10:00 PM to 04:00 AM)
                 if current_minutes >= start_mins or current_minutes <= end_mins:
                     locs = schedule.get("locations") or []
                     if locs:

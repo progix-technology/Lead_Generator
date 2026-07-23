@@ -112,19 +112,10 @@ def get_active_country_schedule(settings: Dict[str, Any]) -> tuple[str, List[str
         except Exception:
             pass
 
-    return "USA", settings.get("locations") or LOCATIONS
-
-    # Sync logs to MongoDB for cross-process visibility (e.g. GitHub Actions -> Render API)
-    try:
-        loop = asyncio.get_running_loop()
-        from app.database.connection import db_instance
-        if db_instance.db is not None:
-            loop.create_task(db_instance.db["automation_settings"].update_one(
-                {},
-                {"$push": {"live_logs": {"$each": [formatted], "$slice": -200}}}
-            ))
-    except Exception:
-        pass
+    # Return first available country's locations if outside all specific time windows
+    first_code = list(schedules.keys())[0] if schedules else "USA"
+    first_locs = schedules[first_code].get("locations") if schedules and first_code in schedules else (settings.get("locations") or LOCATIONS)
+    return first_code, first_locs or LOCATIONS
 
 def _safe_str(value: Any, default: str = "") -> str:
     if value is None:

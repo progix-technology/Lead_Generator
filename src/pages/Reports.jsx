@@ -27,6 +27,7 @@ export default function Reports() {
   const [selectedDate, setSelectedDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [campaignType, setCampaignType] = useState('all'); // 'all', 'standard', 'redesign'
+  const [selectedCountry, setSelectedCountry] = useState('All'); // 'All', 'United States', 'United Kingdom', 'Dubai (UAE)'
   
   // Modal Preview States
   const [selectedRecord, setSelectedRecord] = useState(null);
@@ -51,6 +52,20 @@ export default function Reports() {
     }
   };
 
+  // Helper to determine record country
+  const getRecordCountry = (record) => {
+    if (record.country) return record.country;
+    const loc = (record.location || record.metadata?.location || '').toLowerCase();
+
+    if (loc.includes('uae') || loc.includes('dubai') || loc.includes('abu dhabi') || loc.includes('sharjah') || loc.includes('ajman') || loc.includes('al ain') || loc.includes('jebel ali') || loc.includes('bur dubai')) {
+      return 'Dubai (UAE)';
+    }
+    if (loc.includes('england') || loc.includes('uk') || loc.includes('london') || loc.includes('birmingham') || loc.includes('manchester') || loc.includes('leeds') || loc.includes('glasgow') || loc.includes('scotland') || loc.includes('wales') || loc.includes('edinburgh') || loc.includes('bristol') || loc.includes('brighton') || loc.includes('oxford') || loc.includes('cambridge')) {
+      return 'United Kingdom';
+    }
+    return 'United States';
+  };
+
   // 1. Group records by unique date to let user pick from existing days in database
   const uniqueDates = Array.from(
     new Set(
@@ -64,7 +79,7 @@ export default function Reports() {
     )
   ).sort((a, b) => b.localeCompare(a)); // Sort descending (latest dates first)
 
-  // 2. Filter records based on selected date & search keyword
+  // 2. Filter records based on selected date, country & search keyword
   const filteredRecords = records.filter(record => {
     const recordEmail = record.recipient_email || record.email || '';
     const recordCategory = record.category || record.metadata?.industry || '';
@@ -74,6 +89,9 @@ export default function Reports() {
 
     // Date filter
     if (selectedDate && recordDate !== selectedDate) return false;
+
+    // Country filter
+    if (selectedCountry !== 'All' && getRecordCountry(record) !== selectedCountry) return false;
 
     // Campaign Type filter
     if (campaignType === 'redesign') {
@@ -170,6 +188,7 @@ export default function Reports() {
     setSelectedDate('');
     setSearchTerm('');
     setCampaignType('all');
+    setSelectedCountry('All');
   };
 
   const handleOpenPreview = (record) => {
@@ -201,9 +220,9 @@ export default function Reports() {
 
         <div className="flex items-center gap-3">
           <div className="bg-slate-800/80 p-2 rounded-xl border border-slate-700 flex items-center gap-2 text-xs">
-            <span className="text-slate-400 font-semibold px-2">Total Logs:</span>
+            <span className="text-slate-400 font-semibold px-2">Filtered Logs:</span>
             <span className="bg-blue-600 text-white font-extrabold px-3 py-1 rounded-lg">
-              {records.length} Records
+              {filteredRecords.length} / {records.length} Records
             </span>
           </div>
         </div>
@@ -253,6 +272,21 @@ export default function Reports() {
                     {new Date(d).toLocaleDateString(undefined, { dateStyle: 'medium' })}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            {/* Country Selector Dropdown Filter */}
+            <div className="flex items-center gap-1.5 ml-2 border-l border-gray-250 pl-4">
+              <span className="text-xs">🌐</span>
+              <select
+                value={selectedCountry}
+                onChange={(e) => setSelectedCountry(e.target.value)}
+                className="text-xs font-bold text-indigo-700 bg-transparent border-0 focus:outline-none focus:ring-0 cursor-pointer pr-4"
+              >
+                <option value="All">All Countries (Global)</option>
+                <option value="United States">🇺🇸 United States (USA)</option>
+                <option value="United Kingdom">🇬🇧 United Kingdom (UK)</option>
+                <option value="Dubai (UAE)">🇦🇪 Dubai (UAE)</option>
               </select>
             </div>
 
@@ -309,7 +343,7 @@ export default function Reports() {
               />
             </div>
             
-            {(selectedDate || searchTerm || campaignType !== 'all') && (
+            {(selectedDate || searchTerm || campaignType !== 'all' || selectedCountry !== 'All') && (
               <button
                 onClick={handleClearFilters}
                 className="text-xs text-red-500 hover:text-red-700 font-semibold cursor-pointer whitespace-nowrap"
@@ -390,7 +424,7 @@ export default function Reports() {
 
           <div className="space-y-3.5 min-h-[160px] flex flex-col justify-center">
             {categoryStats.length === 0 ? (
-              <div className="text-xs text-gray-400 italic text-center">No categories recorded in this filter date.</div>
+              <div className="text-xs text-gray-400 italic text-center">No categories recorded in this filter selection.</div>
             ) : (
               categoryStats.map((stat, idx) => {
                 const percent = totalSent > 0 ? Math.round((stat.count / totalSent) * 100) : 0;
@@ -421,7 +455,7 @@ export default function Reports() {
 
           <div className="space-y-3.5 min-h-[160px] flex flex-col justify-center">
             {locationStats.length === 0 ? (
-              <div className="text-xs text-gray-400 italic text-center">No locations recorded in this filter date.</div>
+              <div className="text-xs text-gray-400 italic text-center">No locations recorded in this filter selection.</div>
             ) : (
               locationStats.map((stat, idx) => {
                 const percent = totalSent > 0 ? Math.round((stat.count / totalSent) * 100) : 0;

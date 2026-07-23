@@ -57,21 +57,37 @@ export default function Dashboard() {
   const successRate = totalSent > 0 ? Math.round((successCount / totalSent) * 100) : 0;
 
   // 2. Compute Unique Categories and Locations from records for filtering
-  const categoriesList = Array.from(new Set(records.map(r => r.category).filter(Boolean)));
-  const locationsList = Array.from(new Set(records.map(r => r.location).filter(Boolean)));
+  const categoriesList = Array.from(
+    new Set(
+      records
+        .map(r => r.category || r.metadata?.industry)
+        .filter(Boolean)
+    )
+  );
+
+  const locationsList = Array.from(
+    new Set(
+      records
+        .map(r => r.location || r.metadata?.location)
+        .filter(Boolean)
+    )
+  );
 
   // 3. Filter records for breakdown charts based on quick dropdown filters
   const filteredRecords = records.filter(r => {
-    if (selectedLocation !== 'All' && r.location !== selectedLocation) return false;
-    if (selectedCategory !== 'All' && r.category !== selectedCategory) return false;
+    const rLoc = r.location || r.metadata?.location;
+    const rCat = r.category || r.metadata?.industry;
+    if (selectedLocation !== 'All' && rLoc !== selectedLocation) return false;
+    if (selectedCategory !== 'All' && rCat !== selectedCategory) return false;
     return true;
   });
 
   // 4. Compute dynamic Category chart statistics
   const categoryCounts = {};
   filteredRecords.forEach(r => {
-    if (r.category) {
-      categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1;
+    const catName = r.category || r.metadata?.industry;
+    if (catName) {
+      categoryCounts[catName] = (categoryCounts[catName] || 0) + 1;
     }
   });
   const categoryChartData = Object.entries(categoryCounts)
@@ -82,8 +98,9 @@ export default function Dashboard() {
   // 5. Compute dynamic Location chart statistics
   const locationCounts = {};
   filteredRecords.forEach(r => {
-    if (r.location) {
-      locationCounts[r.location] = (locationCounts[r.location] || 0) + 1;
+    const locName = r.location || r.metadata?.location;
+    if (locName) {
+      locationCounts[locName] = (locationCounts[locName] || 0) + 1;
     }
   });
   const locationChartData = Object.entries(locationCounts)
@@ -133,7 +150,7 @@ export default function Dashboard() {
               <FiFolder size={20} />
             </div>
           </div>
-          <span className="text-[10px] text-gray-400 mt-4 block">Total list matches currently saved in DB.</span>
+          <span className="text-[10px] text-gray-400 mt-4 block">Total lead companies currently saved in database.</span>
         </Card>
 
         <Card className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm relative overflow-hidden">
@@ -146,7 +163,7 @@ export default function Dashboard() {
               <FiMail size={20} />
             </div>
           </div>
-          <span className="text-[10px] text-gray-400 mt-4 block">Total campaign pipeline runs (Sent + Failed + Skipped).</span>
+          <span className="text-[10px] text-gray-400 mt-4 block">Total campaign pipeline runs executed.</span>
         </Card>
 
         <Card className="bg-gradient-to-br from-white to-gray-50 border border-gray-200 shadow-sm relative overflow-hidden">
@@ -230,7 +247,6 @@ export default function Dashboard() {
               return <div className="text-xs text-gray-400 italic text-center py-20">No outreach history records available to plot timeline.</div>;
             }
 
-            // Simple responsive premium CSS grid-based SVG mountain chart to guarantee zero package dependency crashes
             const maxVal = Math.max(...chartData.map(d => d.sent + d.failed), 5);
             const width = 800;
             const height = 220;
@@ -361,7 +377,6 @@ export default function Dashboard() {
                 const percentWidth = Math.round((stat.count / maxCount) * 100);
                 const percentOfTotal = totalSent > 0 ? Math.round((stat.count / totalSent) * 100) : 0;
 
-                // Colors mapping for premium look
                 const barColors = [
                   'bg-gradient-to-r from-blue-500 to-indigo-500',
                   'bg-gradient-to-r from-cyan-500 to-blue-500',
@@ -470,43 +485,55 @@ export default function Dashboard() {
               No recent email dispatches recorded. Turn Autopilot Status switch ON to start campaigning.
             </div>
           ) : (
-            records.slice(0, 7).map((record) => (
-              <div key={record.id} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-gray-50 transition-colors">
-                {/* Left side: Company Details & Subject */}
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-gray-900 text-sm truncate">{record.company_name}</span>
-                    <span className="text-xs font-mono text-gray-500 truncate bg-gray-100 px-2 py-0.5 rounded border border-gray-150">{record.email}</span>
+            records.slice(0, 10).map((record) => {
+              const recordEmail = record.recipient_email || record.email || '';
+              const recordCategory = record.category || record.metadata?.industry || 'N/A';
+              const recordLocation = record.location || record.metadata?.location || 'N/A';
+              const rawDate = record.sent_at || record.created_at;
+              const dateObj = rawDate ? new Date(rawDate) : null;
+              const dateStr = dateObj && !isNaN(dateObj.getTime()) ? dateObj.toLocaleString() : 'N/A';
+
+              return (
+                <div key={record.id || record._id} className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-gray-50 transition-colors">
+                  {/* Left side: Company Details & Subject */}
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-gray-900 text-sm truncate">{record.company_name}</span>
+                      <span className="text-xs font-mono text-gray-500 truncate bg-gray-100 px-2 py-0.5 rounded border border-gray-150">
+                        {recordEmail || 'No email'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-700 font-semibold truncate bg-blue-50/50 border border-blue-100 rounded-lg p-2 max-w-2xl">
+                      <span className="text-gray-400 select-none mr-1 font-bold text-[10px] uppercase">Subject:</span>
+                      {record.subject || 'Outreach Email'}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-700 font-semibold truncate bg-blue-50/50 border border-blue-100 rounded-lg p-2 max-w-2xl">
-                    <span className="text-gray-400 select-none mr-1 font-bold text-[10px] uppercase">Subject:</span>
-                    {record.subject}
+
+                  {/* Right side: Categories, locations, status & Date */}
+                  <div className="flex flex-wrap items-center gap-3 shrink-0">
+                    <span className="inline-flex items-center text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-medium">
+                      {recordCategory}
+                    </span>
+                    <span className="inline-flex items-center text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-medium">
+                      {recordLocation}
+                    </span>
+
+                    <span className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
+                      record.status === 'Sent'
+                        ? 'bg-green-50 border-green-200 text-green-700'
+                        : 'bg-red-50 border-red-200 text-red-600'
+                      }`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${record.status === 'Sent' ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                      {record.status}
+                    </span>
+
+                    <div className="text-[10px] text-gray-400 font-medium whitespace-nowrap">
+                      {dateStr}
+                    </div>
                   </div>
                 </div>
-
-                {/* Right side: Categories, locations, status & Date */}
-                <div className="flex flex-wrap items-center gap-3 shrink-0">
-                  <span className="inline-flex items-center text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-medium">
-                    {record.category || 'N/A'}
-                  </span>
-                  <span className="inline-flex items-center text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 font-medium">
-                    {record.location || 'N/A'}
-                  </span>
-
-                  <span className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${record.status === 'Sent'
-                      ? 'bg-green-50 border-green-200 text-green-700'
-                      : 'bg-red-50 border-red-200 text-red-600'
-                    }`}>
-                    <span className={`h-1.5 w-1.5 rounded-full ${record.status === 'Sent' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                    {record.status}
-                  </span>
-
-                  <div className="text-[10px] text-gray-400 font-medium whitespace-nowrap">
-                    {record.sent_at ? new Date(record.sent_at).toLocaleString() : 'N/A'}
-                  </div>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </Card>

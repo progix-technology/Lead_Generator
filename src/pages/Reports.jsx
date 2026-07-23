@@ -55,18 +55,26 @@ export default function Reports() {
   const uniqueDates = Array.from(
     new Set(
       records
-        .map(r => r.sent_at ? r.sent_at.split('T')[0] : '')
+        .map(r => {
+          const dateVal = r.sent_at || r.created_at;
+          if (!dateVal) return '';
+          return typeof dateVal === 'string' ? dateVal.split('T')[0] : new Date(dateVal).toISOString().split('T')[0];
+        })
         .filter(d => d !== '')
     )
   ).sort((a, b) => b.localeCompare(a)); // Sort descending (latest dates first)
 
   // 2. Filter records based on selected date & search keyword
   const filteredRecords = records.filter(record => {
+    const recordEmail = record.recipient_email || record.email || '';
+    const recordCategory = record.category || record.metadata?.industry || '';
+    const recordLocation = record.location || record.metadata?.location || '';
+    const dateVal = record.sent_at || record.created_at;
+    const recordDate = dateVal ? (typeof dateVal === 'string' ? dateVal.split('T')[0] : new Date(dateVal).toISOString().split('T')[0]) : '';
+
     // Date filter
-    if (selectedDate) {
-      const recordDate = record.sent_at ? record.sent_at.split('T')[0] : '';
-      if (recordDate !== selectedDate) return false;
-    }
+    if (selectedDate && recordDate !== selectedDate) return false;
+
     // Campaign Type filter
     if (campaignType === 'redesign') {
       const isRedesign = (record.subject || '').toLowerCase().includes('website') || 
@@ -77,13 +85,14 @@ export default function Reports() {
                          (record.body || '').toLowerCase().includes('score:');
       if (isRedesign) return false;
     }
+
     // Search keyword filter
     if (searchTerm.trim()) {
       const query = searchTerm.toLowerCase();
       const name = (record.company_name || '').toLowerCase();
-      const email = (record.email || '').toLowerCase();
-      const cat = (record.category || '').toLowerCase();
-      const loc = (record.location || '').toLowerCase();
+      const email = recordEmail.toLowerCase();
+      const cat = recordCategory.toLowerCase();
+      const loc = recordLocation.toLowerCase();
       if (!name.includes(query) && !email.includes(query) && !cat.includes(query) && !loc.includes(query)) {
         return false;
       }
@@ -100,8 +109,9 @@ export default function Reports() {
   // 4. Compute Category Breakdown (Top Categories)
   const categoryMap = {};
   filteredRecords.forEach(r => {
-    if (r.category) {
-      categoryMap[r.category] = (categoryMap[r.category] || 0) + 1;
+    const catName = r.category || r.metadata?.industry;
+    if (catName) {
+      categoryMap[catName] = (categoryMap[catName] || 0) + 1;
     }
   });
   const categoryStats = Object.entries(categoryMap)
@@ -112,8 +122,9 @@ export default function Reports() {
   // 5. Compute Location Breakdown (Top Locations)
   const locationMap = {};
   filteredRecords.forEach(r => {
-    if (r.location) {
-      locationMap[r.location] = (locationMap[r.location] || 0) + 1;
+    const locName = r.location || r.metadata?.location;
+    if (locName) {
+      locationMap[locName] = (locationMap[locName] || 0) + 1;
     }
   });
   const locationStats = Object.entries(locationMap)
@@ -131,29 +142,28 @@ export default function Reports() {
     // Rows
     const rows = filteredRecords.map(r => [
       r.company_name || '',
-      r.email || '',
-      r.category || '',
-      r.location || '',
+      r.recipient_email || r.email || '',
+      r.category || r.metadata?.industry || '',
+      r.location || r.metadata?.location || '',
       r.subject || '',
       r.status || '',
-      r.sent_at ? new Date(r.sent_at).toLocaleString() : ''
+      (r.sent_at || r.created_at) ? new Date(r.sent_at || r.created_at).toLocaleString() : ''
     ]);
-    
-    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
-      + [headers.join(','), ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))].join('\n');
-      
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `autopilot_report_${selectedDate || 'all_time'}.csv`);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(e => e.map(val => `"${String(val).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const filename = selectedDate ? `Outreach_Report_${selectedDate}.csv` : `Outreach_Report_AllTime.csv`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
-
-  const handleOpenPreview = (record) => {
-    setSelectedRecord(record);
-    setShowPreviewModal(true);
   };
 
   const handleClearFilters = () => {
@@ -162,40 +172,67 @@ export default function Reports() {
     setCampaignType('all');
   };
 
+  const handleOpenPreview = (record) => {
+    setSelectedRecord(record);
+    setShowPreviewModal(true);
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+      <div className="p-8 text-center text-gray-500 font-medium animate-pulse">
+        Generating analytics report metrics...
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 font-inter">
-      {/* Top Filter Bar Header */}
-      <Card className="p-4 bg-white shadow-sm border border-gray-200">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Quick Presets */}
+    <div className="space-y-6 max-w-7xl mx-auto pb-12">
+      {/* Header & Date Selector Filter */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 rounded-2xl text-white shadow-xl">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="p-2 bg-blue-500/20 text-blue-400 rounded-xl text-xl">📄</span>
+            <h1 className="text-2xl font-black tracking-tight">Outreach Performance & Analytics Reports</h1>
+          </div>
+          <p className="text-sm text-slate-300">
+            Real-time conversion metrics, day-wise dispatch logs, and downloadable CSV audit reports.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="bg-slate-800/80 p-2 rounded-xl border border-slate-700 flex items-center gap-2 text-xs">
+            <span className="text-slate-400 font-semibold px-2">Total Logs:</span>
+            <span className="bg-blue-600 text-white font-extrabold px-3 py-1 rounded-lg">
+              {records.length} Records
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Control Bar */}
+      <Card className="space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Day Selector Quick Buttons */}
+          <div className="flex flex-wrap items-center gap-2">
             <button
               onClick={() => setSelectedDate('')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
-                !selectedDate 
-                  ? 'bg-blue-50 border-blue-200 text-blue-700' 
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+              className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                selectedDate === ''
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
               }`}
             >
               All Time
             </button>
 
-            {uniqueDates.slice(0, 3).map((d) => (
+            {uniqueDates.slice(0, 5).map((d) => (
               <button
                 key={d}
                 onClick={() => setSelectedDate(d)}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   selectedDate === d
-                    ? 'bg-blue-50 border-blue-200 text-blue-700' 
-                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
                 {new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -348,9 +385,9 @@ export default function Reports() {
             <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
               <FiActivity className="text-blue-500" /> Target Categories Performance
             </h3>
-            <span className="text-[11px] text-gray-400">Lead distribution</span>
+            <span className="text-[11px] text-gray-400">Top industry categories</span>
           </div>
-          
+
           <div className="space-y-3.5 min-h-[160px] flex flex-col justify-center">
             {categoryStats.length === 0 ? (
               <div className="text-xs text-gray-400 italic text-center">No categories recorded in this filter date.</div>
@@ -364,7 +401,7 @@ export default function Reports() {
                       <span>{stat.count} ({percent}%)</span>
                     </div>
                     <div className="w-full bg-gray-150 h-2 rounded-full overflow-hidden">
-                      <div className="bg-blue-500 h-full rounded-full transition-all" style={{ width: `${percent}%` }}></div>
+                      <div className="bg-blue-600 h-full rounded-full transition-all" style={{ width: `${percent}%` }}></div>
                     </div>
                   </div>
                 );
@@ -431,67 +468,78 @@ export default function Reports() {
                   </td>
                 </tr>
               ) : (
-                filteredRecords.map((record) => (
-                  <tr key={record.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 truncate">
-                      <div className="font-semibold text-gray-900 truncate">{record.company_name}</div>
-                      <div className="text-[10px] text-gray-400 mt-0.5">
-                        Sent: {record.sent_at ? new Date(record.sent_at).toLocaleString() : 'N/A'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 truncate">
-                      <span className="font-mono text-xs block">{record.email}</span>
-                      <div className="text-[10px] text-gray-400 font-medium select-none mt-1">
-                        source: <span className="font-semibold text-gray-500">{(() => {
-                          const src = (record.email_source || "").toLowerCase();
-                          const webUrl = record.metadata?.website || "";
-                          
-                          if (src.includes("facebook")) return "facebook.com";
-                          if (src.includes("instagram")) return "instagram.com";
-                          if (src.includes("linkedin")) return "linkedin.com";
-                          
-                          if (webUrl && webUrl !== "your business" && !webUrl.includes("their website")) {
-                            return webUrl.replace(/https?:\/\/(www\.)?/, 'www.').split('/')[0];
-                          }
-                          if (!record.email.includes("gmail.com") && !record.email.includes("yahoo.com") && !record.email.includes("outlook.com")) {
-                            return `www.${record.email.split('@')[1]}`;
-                          }
-                          return "facebook.com";
-                        })()}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 truncate">
-                      <span className="inline-flex items-center text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200 mr-1.5 font-medium">
-                        {record.category || 'N/A'}
-                      </span>
-                      <span className="inline-flex items-center text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200 font-medium">
-                        {record.location || 'N/A'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
-                        record.status === 'Sent' 
-                          ? 'bg-green-50 border-green-200 text-green-700' 
-                          : 'bg-red-50 border-red-200 text-red-600'
-                      }`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${record.status === 'Sent' ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                        {record.status}
-                      </span>
-                      {record.error_message && (
-                        <div className="text-[9px] text-red-500 mt-1 italic truncate max-w-xs">{record.error_message}</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => handleOpenPreview(record)}
-                        className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-100 rounded-lg transition-all cursor-pointer inline-flex items-center justify-center"
-                        title="Preview Sent Pitch"
-                      >
-                        <FiEye size={14} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
+                filteredRecords.map((record) => {
+                  const recordEmail = record.recipient_email || record.email || '';
+                  const recordCategory = record.category || record.metadata?.industry || 'N/A';
+                  const recordLocation = record.location || record.metadata?.location || 'N/A';
+                  const rawDate = record.sent_at || record.created_at;
+                  const dateObj = rawDate ? new Date(rawDate) : null;
+                  const dateStr = dateObj && !isNaN(dateObj.getTime()) ? dateObj.toLocaleString() : 'N/A';
+
+                  return (
+                    <tr key={record.id || record._id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 truncate">
+                        <div className="font-semibold text-gray-900 truncate">{record.company_name}</div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">
+                          Sent: {dateStr}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 truncate">
+                        <span className="font-mono text-xs block">{recordEmail || 'No Email'}</span>
+                        <div className="text-[10px] text-gray-400 font-medium select-none mt-1">
+                          source: <span className="font-semibold text-gray-500">{(() => {
+                            const src = (record.email_source || "").toLowerCase();
+                            const webUrl = record.metadata?.website || "";
+                            
+                            if (src.includes("facebook")) return "facebook.com";
+                            if (src.includes("instagram")) return "instagram.com";
+                            if (src.includes("linkedin")) return "linkedin.com";
+                            
+                            if (webUrl && webUrl !== "your business" && !webUrl.includes("their website")) {
+                              return webUrl.replace(/https?:\/\/(www\.)?/, 'www.').split('/')[0];
+                            }
+                            if (recordEmail && !recordEmail.includes("gmail.com") && !recordEmail.includes("yahoo.com") && !recordEmail.includes("outlook.com")) {
+                              return `www.${recordEmail.split('@')[1] || ''}`;
+                            }
+                            return "facebook.com";
+                          })()}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 truncate">
+                        <span className="inline-flex items-center text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200 mr-1.5 font-medium">
+                          {recordCategory}
+                        </span>
+                        <span className="inline-flex items-center text-[10px] bg-gray-100 text-gray-600 px-2 py-0.5 rounded border border-gray-200 font-medium">
+                          {recordLocation}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
+                          record.status === 'Sent' 
+                            ? 'bg-green-50 border-green-200 text-green-700' 
+                            : record.status === 'Pending_Email'
+                              ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                              : 'bg-red-50 border-red-200 text-red-600'
+                        }`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${record.status === 'Sent' ? 'bg-green-500' : record.status === 'Pending_Email' ? 'bg-indigo-500' : 'bg-red-500'}`}></span>
+                          {record.status}
+                        </span>
+                        {record.error_message && (
+                          <div className="text-[9px] text-red-500 mt-1 italic truncate max-w-xs">{record.error_message}</div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <button
+                          onClick={() => handleOpenPreview(record)}
+                          className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-100 rounded-lg transition-all cursor-pointer inline-flex items-center justify-center"
+                          title="Preview Sent Pitch"
+                        >
+                          <FiEye size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -506,7 +554,7 @@ export default function Reports() {
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-gray-800">Preview Sent Pitch</h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">Delivered to: {selectedRecord.company_name} ({selectedRecord.email})</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Delivered to: {selectedRecord.company_name} ({selectedRecord.recipient_email || selectedRecord.email})</p>
               </div>
               <button 
                 onClick={() => setShowPreviewModal(false)}
@@ -519,28 +567,37 @@ export default function Reports() {
             {/* Modal Body */}
             <div className="p-6 overflow-y-auto space-y-4 flex-1">
               <div>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Subject Line</span>
-                <div className="text-xs font-semibold text-gray-800 bg-gray-50 border border-gray-200 rounded-lg p-2.5 mt-1 font-mono">
-                  {selectedRecord.subject}
-                </div>
+                <span className="font-semibold text-gray-400 text-xs block mb-0.5">Recipients:</span>
+                <span className="font-mono text-gray-700">{selectedRecord.company_name} ({selectedRecord.recipient_email || selectedRecord.email})</span>
               </div>
 
               <div>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Email Message Body</span>
-                <div className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-xl p-4 mt-1 font-sans whitespace-pre-wrap leading-relaxed min-h-[220px]">
+                <span className="font-semibold text-gray-400 text-xs block mb-0.5">Subject Line:</span>
+                <span className="font-bold text-gray-900 text-base">{selectedRecord.subject}</span>
+              </div>
+
+              <div>
+                <span className="font-semibold text-gray-400 text-xs block mb-1">Email Body Content:</span>
+                <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50 whitespace-pre-line text-xs leading-relaxed max-h-[300px] overflow-y-auto font-sans text-gray-700">
                   {selectedRecord.body}
                 </div>
               </div>
+
+              {selectedRecord.error_message && (
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-xs flex items-center gap-1.5">
+                  <FiAlertCircle /> <strong>Error:</strong> {selectedRecord.error_message}
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
             <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
-              <Button 
-                variant="secondary" 
+              <Button
+                variant="secondary"
                 onClick={() => setShowPreviewModal(false)}
-                className="text-xs px-4 py-2 cursor-pointer"
+                className="text-xs px-5 py-2 font-semibold"
               >
-                Dismiss
+                Close Preview
               </Button>
             </div>
           </div>

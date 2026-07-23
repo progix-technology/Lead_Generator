@@ -577,207 +577,51 @@ export default function AutomatedCampaigns() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Autopilot Multi-Country Template & Schedule Manager */}
-          <Card className="space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-100 pb-3 gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <FiSettings className="text-blue-500" /> Country-Specific Email Templates
-                </h3>
-                <p className="text-xs text-gray-400">Manage tailored outreach pitches & schedules for each target country.</p>
-              </div>
-
-              {/* Country Selector Tabs */}
-              <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => handleCountryTabChange('USA')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    selectedCountryTab === 'USA' ? 'bg-white text-blue-600 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <span>🇺🇸</span> USA
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleCountryTabChange('UK')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    selectedCountryTab === 'UK' ? 'bg-white text-blue-600 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <span>🇬🇧</span> UK
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleCountryTabChange('UAE')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    selectedCountryTab === 'UAE' ? 'bg-white text-blue-600 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'
-                  }`}
-                >
-                  <span>🇦🇪</span> Dubai (UAE)
-                </button>
-              </div>
-            </div>
-
-            {/* Target Schedule Info Banner */}
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center justify-between text-xs">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">
-                  {selectedCountryTab === 'USA' ? '🇺🇸' : selectedCountryTab === 'UK' ? '🇬🇧' : '🇦🇪'}
-                </span>
-                <div>
-                  <span className="font-bold text-gray-800">
-                    {selectedCountryTab === 'USA' ? 'United States Target Template' : selectedCountryTab === 'UK' ? 'United Kingdom Target Template' : 'Dubai (UAE) Target Template'}
-                  </span>
-                  <span className="text-gray-500 block text-[11px]">
-                    {selectedCountryTab === 'USA' ? 'Target Window: 01:00 AM – 04:00 AM IST' : selectedCountryTab === 'UK' ? 'Target Window: 03:00 PM – 09:00 PM IST' : 'Target Window: 10:00 AM – 02:00 PM IST'}
-                  </span>
-                </div>
-              </div>
-              <span className="text-[11px] font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-lg">
-                Time-Slot Active
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="md:col-span-3">
-                <Input
-                  label="Autopilot Subject Line"
-                  placeholder="Helping {{company}} strengthen its online presence"
-                  value={subjectTemplate}
-                  onChange={(e) => setSubjectTemplate(e.target.value)}
-                />
-              </div>
-              <div>
-                <Input
-                  label="Daily Limit"
-                  type="number"
-                  min="1"
-                  max="500"
-                  placeholder="20"
-                  value={dailyEmailLimit}
-                  onChange={(e) => setDailyEmailLimit(e.target.value)}
-                />
-              </div>
-              <div>
-                <Input
-                  label="Batch Target"
-                  type="number"
-                  min="1"
-                  max="50"
-                  placeholder="5"
-                  value={batchEmailLimit}
-                  onChange={(e) => setBatchEmailLimit(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-3">
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Body Template</label>
-                <textarea
-                  ref={bodyRef}
-                  rows="14"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
-                  placeholder="Write your Autopilot outreach email here..."
-                  value={bodyTemplate}
-                  onChange={(e) => setBodyTemplate(e.target.value)}
-                />
-              </div>
-
-              {/* Template Variables Helper */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Available Tags:</label>
-                <div className="flex flex-col gap-1.5">
-                  {variables.map((variable) => (
-                    <button
-                      key={variable.code}
-                      onClick={() => insertVariable(variable.code)}
-                      className="text-left px-2.5 py-1.5 text-[11px] font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-all cursor-pointer flex items-center justify-between"
-                    >
-                      <span>{variable.label}</span>
-                      <span className="text-blue-600 font-mono">+{variable.code}</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[10px] text-gray-400 leading-normal mt-3 italic">Click any tag button to insert placeholder at cursor.</p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-              {successMsg && (
-                <span className="text-xs text-green-600 font-medium flex items-center gap-1">
-                  <FiCheckCircle /> {successMsg}
-                </span>
-              )}
-              {error && !successMsg && (
-                <span className="text-xs text-red-600 font-medium flex items-center gap-1">
-                  <FiAlertCircle /> {error}
-                </span>
-              )}
-              {!successMsg && !error && <span />}
-              <Button
-                variant="primary"
-                onClick={handleSaveSettings}
-                disabled={savingSettings}
-                className="text-xs px-6 py-2"
-              >
-                {savingSettings ? 'Saving...' : 'Save Autopilot Template'}
-              </Button>
-            </div>
-          </Card>
-
-          {/* Autopilot Redesign Template (Bad Website Leads) Configurations */}
+          {/* Autopilot Dispatch Controls & Country Template Banner */}
           <Card className="space-y-4">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3">
               <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                <FiSettings className="text-blue-500" /> Redesign (Bad Website) Template
+                <FiSettings className="text-blue-500" /> Autopilot Dispatch Limits
               </h3>
-              <span className="text-xs text-gray-400">Pitches sent exclusively to leads with outdated/slow websites.</span>
+              <span className="text-xs text-gray-400">Configure daily volume & batch sizes.</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="md:col-span-5">
-                <Input
-                  label="Redesign Subject Line"
-                  placeholder="Quick suggestion for {{company}} about your website"
-                  value={redesignSubjectTemplate}
-                  onChange={(e) => setRedesignSubjectTemplate(e.target.value)}
-                />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Input
+                label="Daily Email Limit"
+                type="number"
+                min="1"
+                max="500"
+                placeholder="20"
+                value={dailyEmailLimit}
+                onChange={(e) => setDailyEmailLimit(e.target.value)}
+              />
+              <Input
+                label="Batch Target per Cycle"
+                type="number"
+                min="1"
+                max="50"
+                placeholder="5"
+                value={batchEmailLimit}
+                onChange={(e) => setBatchEmailLimit(e.target.value)}
+              />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="md:col-span-3">
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email Body Template</label>
-                <textarea
-                  ref={redesignBodyRef}
-                  rows="14"
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 font-sans"
-                  placeholder="Write your website redesign outreach email here..."
-                  value={redesignBodyTemplate}
-                  onChange={(e) => setRedesignBodyTemplate(e.target.value)}
-                />
-              </div>
-
-              {/* Template Variables Helper */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Available Tags:</label>
-                <div className="flex flex-col gap-1.5">
-                  {redesignVariables.map((variable) => (
-                    <button
-                      type="button"
-                      key={variable.code}
-                      onClick={() => insertRedesignVariable(variable.code)}
-                      className="text-left px-2.5 py-1.5 text-[11px] font-semibold text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 hover:border-gray-300 transition-all cursor-pointer flex items-center justify-between"
-                    >
-                      <span>{variable.label}</span>
-                      <span className="text-blue-600 font-mono">+{variable.code}</span>
-                    </button>
-                  ))}
+            {/* Banner linking to Country Templates page */}
+            <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-100 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">🌐</span>
+                <div>
+                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Multi-Country Email Templates</h4>
+                  <p className="text-xs text-gray-500">Manage localized outreach pitches for 🇺🇸 USA, 🇬🇧 UK, and 🇦🇪 Dubai (UAE) on the dedicated templates page.</p>
                 </div>
-                <p className="text-[10px] text-gray-400 leading-normal mt-3 italic">Click any tag button to insert placeholder at cursor.</p>
               </div>
+              <a
+                href="/country-templates"
+                className="inline-flex items-center justify-center px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-all shadow-sm whitespace-nowrap"
+              >
+                Manage Country Templates ➔
+              </a>
             </div>
 
             <div className="flex items-center justify-between pt-2 border-t border-gray-100">
@@ -798,7 +642,7 @@ export default function AutomatedCampaigns() {
                 disabled={savingSettings}
                 className="text-xs px-6 py-2"
               >
-                {savingSettings ? 'Saving...' : 'Save Redesign Template'}
+                {savingSettings ? 'Saving...' : 'Save Dispatch Limits'}
               </Button>
             </div>
           </Card>

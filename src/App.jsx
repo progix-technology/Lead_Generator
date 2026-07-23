@@ -14,6 +14,7 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Logs from './pages/Logs';
 import AutomatedCampaigns from './pages/AutomatedCampaigns';
+import CountryTemplates from './pages/CountryTemplates';
 import WebsiteAudit from './pages/WebsiteAudit';
 
 // A wrapper component that checks if the user is authenticated
@@ -55,6 +56,7 @@ const App = () => {
           <Route path="companies" element={<Companies />} />
           <Route path="lead-details" element={<LeadDetails />} />
           <Route path="campaign" element={<EmailCampaign />} />
+          <Route path="country-templates" element={<CountryTemplates />} />
           <Route path="reports" element={<Reports />} />
           <Route path="settings" element={<Settings />} />
           <Route path="logs" element={<Logs />} />

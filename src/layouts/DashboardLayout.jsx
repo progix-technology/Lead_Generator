@@ -17,6 +17,7 @@ const DashboardLayout = () => {
     { name: 'My Companies', href: '/companies', icon: '🏢' },
     { name: 'Email Campaign', href: '/campaign', icon: '✉️' },
     { name: 'Autopilot Outreach', href: '/automation', icon: '🤖' },
+    { name: 'Country Templates', href: '/country-templates', icon: '🌐' },
     { name: 'Reports', href: '/reports', icon: '📄' },
     { name: 'Settings', href: '/settings', icon: '⚙️' },
     { name: 'System Logs', href: '/logs', icon: '📋' },

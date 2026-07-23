@@ -371,8 +371,8 @@ export default function AutomatedCampaigns() {
 
         <div className="flex items-center gap-3 shrink-0 flex-wrap lg:flex-nowrap">
           {/* Autopilot Master Switch */}
-          <div className="flex items-center bg-slate-800/90 border border-slate-700/80 px-4 h-10 rounded-xl shadow-sm whitespace-nowrap">
-            <span className="text-xs font-bold text-slate-200 mr-2.5 flex items-center gap-1.5">
+          <div className="flex items-center bg-slate-800 border-2 border-slate-600 px-4 h-10 rounded-2xl shadow-sm whitespace-nowrap">
+            <span className="text-xs font-bold text-slate-100 mr-2.5 flex items-center gap-1.5">
               <FiCpu className={`${enabled ? 'text-blue-400 animate-spin' : 'text-slate-400'}`} style={{ animationDuration: '3s' }} />
               Autopilot Status:
             </span>
@@ -387,20 +387,20 @@ export default function AutomatedCampaigns() {
             </label>
           </div>
 
-          <Button
-            variant="secondary"
-            className="flex items-center justify-center gap-1.5 shadow-sm text-xs h-10 px-4 border border-slate-700/80 bg-slate-800/90 text-slate-200 hover:bg-slate-700 font-semibold cursor-pointer whitespace-nowrap rounded-xl"
+          {/* Terminal Toggle Button (Matching Screenshot) */}
+          <button
+            type="button"
+            className="flex items-center justify-center gap-2 text-xs font-bold h-10 px-4 bg-slate-800 text-white border-2 border-white rounded-2xl hover:bg-slate-700 transition-all cursor-pointer whitespace-nowrap shadow-md"
             onClick={() => setShowConsole(prev => !prev)}
           >
-            <span className="flex items-center gap-1.5">
-              <span className={`h-1.5 w-1.5 rounded-full ${showConsole ? 'bg-green-400 animate-pulse' : 'bg-slate-400'}`}></span>
-              {showConsole ? 'Hide Terminal 📺' : 'Show Terminal 📺'}
-            </span>
-          </Button>
+            <span className={`h-2.5 w-2.5 rounded-full ${showConsole ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`}></span>
+            <span>{showConsole ? 'Hide Terminal 📺' : 'Show Terminal 📺'}</span>
+          </button>
 
-          <Button
-            variant="primary"
-            className="flex items-center justify-center gap-1.5 shadow-md text-xs h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold cursor-pointer border border-blue-500/50 whitespace-nowrap rounded-xl"
+          {/* Run Autopilot Button */}
+          <button
+            type="button"
+            className="flex items-center justify-center gap-1.5 text-xs font-bold h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl border border-blue-400/50 cursor-pointer whitespace-nowrap shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={handleRunCycleNow}
             disabled={triggeringCycle || !enabled || manualRunLocked}
           >
@@ -413,7 +413,7 @@ export default function AutomatedCampaigns() {
                     ? 'Toggle OFF-ON to Run Again'
                     : 'Run Autopilot Now ⚡'
             }
-          </Button>
+          </button>
         </div>
       </div>
 

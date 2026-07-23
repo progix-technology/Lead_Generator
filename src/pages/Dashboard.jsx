@@ -23,6 +23,7 @@ export default function Dashboard() {
   // Dashboard states
   const [selectedLocation, setSelectedLocation] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [selectedGraphCountry, setSelectedGraphCountry] = useState('All');
 
   useEffect(() => {
     fetchDashboardData();
@@ -47,6 +48,20 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Helper to determine record country
+  const getRecordCountry = (record) => {
+    if (record.country) return record.country;
+    const loc = (record.location || record.metadata?.location || '').toLowerCase();
+
+    if (loc.includes('uae') || loc.includes('dubai') || loc.includes('abu dhabi') || loc.includes('sharjah') || loc.includes('ajman') || loc.includes('al ain') || loc.includes('jebel ali') || loc.includes('bur dubai')) {
+      return 'Dubai (UAE)';
+    }
+    if (loc.includes('england') || loc.includes('uk') || loc.includes('london') || loc.includes('birmingham') || loc.includes('manchester') || loc.includes('leeds') || loc.includes('glasgow') || loc.includes('scotland') || loc.includes('wales') || loc.includes('edinburgh') || loc.includes('bristol') || loc.includes('brighton') || loc.includes('oxford') || loc.includes('cambridge')) {
+      return 'United Kingdom';
+    }
+    return 'United States';
   };
 
   // 1. Compute Top Level Metrics
@@ -222,13 +237,35 @@ export default function Dashboard() {
             </h3>
             <p className="text-xs text-gray-400 mt-1">Graphical progression of sent vs failed email counts over the last 15 days.</p>
           </div>
+
+          {/* Country Selector Dropdown Filter for Mountain Chart */}
+          <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-1.5 bg-gray-50 shadow-sm self-start md:self-auto">
+            <span className="text-xs font-bold text-gray-500 uppercase flex items-center gap-1">
+              <span>🌐</span> Country Filter:
+            </span>
+            <select
+              value={selectedGraphCountry}
+              onChange={(e) => setSelectedGraphCountry(e.target.value)}
+              className="text-xs font-bold text-indigo-700 bg-transparent border-0 focus:outline-none focus:ring-0 cursor-pointer pr-2"
+            >
+              <option value="All">All Countries (Global)</option>
+              <option value="United States">🇺🇸 United States (USA)</option>
+              <option value="United Kingdom">🇬🇧 United Kingdom (UK)</option>
+              <option value="Dubai (UAE)">🇦🇪 Dubai (UAE)</option>
+            </select>
+          </div>
         </div>
 
         <div className="h-[280px] w-full pt-4">
           {(() => {
-            // Group records by date (local representation, e.g. "Jul 15")
+            // Filter records by selected graph country
+            let graphRecords = records;
+            if (selectedGraphCountry !== 'All') {
+              graphRecords = records.filter(r => getRecordCountry(r) === selectedGraphCountry);
+            }
+
             const dateGroups = {};
-            const sortedRecords = [...records].sort((a, b) => new Date(a.sent_at || a.created_at) - new Date(b.sent_at || b.created_at));
+            const sortedRecords = [...graphRecords].sort((a, b) => new Date(a.sent_at || a.created_at) - new Date(b.sent_at || b.created_at));
             
             // Collect the last 15 active days
             sortedRecords.forEach(r => {
@@ -249,7 +286,11 @@ export default function Dashboard() {
             const chartData = Object.values(dateGroups).slice(-15);
 
             if (chartData.length === 0) {
-              return <div className="text-xs text-gray-400 italic text-center py-20">No outreach history records available to plot timeline.</div>;
+              return (
+                <div className="text-xs text-gray-400 italic text-center py-20 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+                  No outreach history recorded for {selectedGraphCountry === 'All' ? 'any country' : selectedGraphCountry} yet.
+                </div>
+              );
             }
 
             const maxVal = Math.max(...chartData.map(d => d.sent + d.failed), 5);

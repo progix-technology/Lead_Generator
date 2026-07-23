@@ -11,7 +11,18 @@ const DEFAULT_SCHEDULES = {
     flag: "🇺🇸",
     start_time_ist: "01:00 AM",
     end_time_ist: "04:00 AM",
-    locations: ["New York, NY", "Los Angeles, CA", "Chicago, IL", "Houston, TX", "Phoenix, AZ", "Dallas, TX", "Miami, FL"]
+    locations: [
+      "New York, NY", "Los Angeles, CA", "Chicago, IL", "Houston, TX", "Phoenix, AZ",
+      "Dallas, TX", "Miami, FL", "Atlanta, GA", "San Diego, CA", "Austin, TX",
+      "Seattle, WA", "Denver, CO", "San Jose, CA", "Orlando, FL", "Tampa, FL",
+      "Las Vegas, NV", "Charlotte, NC", "Nashville, TN", "Boston, MA", "Philadelphia, PA",
+      "Fort Worth, TX", "Jacksonville, FL", "Columbus, OH", "Indianapolis, IN", "San Antonio, TX",
+      "Portland, OR", "Sacramento, CA", "Raleigh, NC", "Kansas City, MO", "Cincinnati, OH",
+      "Cleveland, OH", "Pittsburgh, PA", "Milwaukee, WI", "Minneapolis, MN", "Salt Lake City, UT",
+      "Virginia Beach, VA", "Richmond, VA", "Oklahoma City, OK", "Louisville, KY", "Memphis, TN",
+      "Birmingham, AL", "New Orleans, LA", "Buffalo, NY", "Hartford, CT", "Providence, RI",
+      "Boise, ID", "Tulsa, OK", "Reno, NV", "Des Moines, IA", "Spokane, WA"
+    ]
   },
   UK: {
     country_name: "United Kingdom",

@@ -237,7 +237,58 @@ class AutomationRepository:
                 needs_update = True
             default_subject = "Helping {{company}} Strengthen Its Online Presence"
             default_body = "Hello {{first_name}},\n\nI hope you're doing well.\n\nWhile researching businesses in the {{industry}} sector across {{location}}, I came across {{company}}. I was impressed by your local presence and the reputation you've built within your community.\n\nI noticed that customers currently rely primarily on {{current_platform}}, as there doesn't appear to be a dedicated business website. While social media and business listings are great for visibility, many customers prefer visiting a professional website before making a purchase, booking a service, or getting in touch.\n\nA dedicated website could help you:\n\n• Showcase your {{service_type}} with a clean, modern design\n• Display your contact information, business hours, and location in one place\n• Improve your visibility on Google through local SEO\n• Promote offers, announcements, and new services more effectively\n• Build greater trust with new customers and strengthen your brand online\n\nAt Progix Technologies LLP, we help businesses create modern, mobile-friendly websites designed to improve customer experience, increase online visibility, and generate more direct enquiries.\n\nIf you're interested, we'd be happy to prepare a complimentary homepage concept tailored specifically for {{company}}, along with a few ideas on how your online presence could be further enhanced.\n\nThank you for your time, and I look forward to hearing from you.\n\nBest Regards,\n\nAbhinandan Dubey\nProgix Technologies LLP\n📞 +1 (916) 702-8905\n✉️ progixtechnology@gmail.com\n🌐 https://www.progixtechnology.com/"
+
+            default_country_templates = {
+                "USA": {
+                    "subject_template": default_subject,
+                    "body_template": default_body,
+                    "redesign_subject_template": default_redesign_subject,
+                    "redesign_body_template": default_redesign_body
+                },
+                "UK": {
+                    "subject_template": "Quick enquiry regarding {{company}}'s digital presence in {{location}}",
+                    "body_template": "Hello {{first_name}},\n\nI hope this email finds you well.\n\nWhile reviewing local businesses in the {{industry}} sector across {{location}}, I came across {{company}}. I was genuinely impressed by your strong local reputation.\n\nI noticed that customers currently engage with you via {{current_platform}}, as there doesn't appear to be a dedicated corporate website. A bespoke website would assist in showcasing your services and building greater trust with potential clients.\n\nAt Progix Technologies LLP, we craft high-performance, responsive websites designed to convert visitors into clients.\n\nIf you would be open to it, we would be delighted to provide a complimentary homepage concept tailored for {{company}}.\n\nThank you for your time.\n\nWarm regards,\n\nAbhinandan Dubey\nProgix Technologies LLP\n📞 +1 (916) 702-8905\n✉️ progixtechnology@gmail.com\n🌐 https://www.progixtechnology.com/",
+                    "redesign_subject_template": "Website performance report & recommendations for {{company}}",
+                    "redesign_body_template": "Hello {{first_name}},\n\nI hope you are having a pleasant week.\n\nWhile conducting digital audits for {{industry}} firms in {{location}}, I analyzed your website ({{website}}). I observed a few technical areas that may be impacting your visitor conversion rate:\n\n• Speed & Loading Score: {{performance_score}}/100\n• Mobile Usability Score: {{ui_score}}/100\n• Search Health Score: {{seo_score}}/100\n\nSpecific observations:\n{{suggestions}}\n\nWe specialize in building modern, ultra-fast websites engineered to load in under 1.5 seconds and maximize enquiries.\n\nWould you be open to reviewing a complimentary 1-page design concept for {{company}} next week?\n\nKind regards,\n\nAbhinandan Dubey\nProgix Technologies LLP\n📞 +1 (916) 702-8905\n✉️ progixtechnology@gmail.com\n🌐 https://www.progixtechnology.com/"
+                },
+                "UAE": {
+                    "subject_template": "Complimentary Digital Growth Audit & Web Proposal for {{company}}",
+                    "body_template": "Hello {{first_name}},\n\nGood day to you.\n\nOur team at Progix Technologies LLP is currently evaluating premier B2B and service enterprises in {{location}}. We reviewed {{company}} and admired your established brand presence.\n\nWe noticed that your business currently operates primarily through {{current_platform}} without a dedicated enterprise website. In the UAE market, a premium custom web platform is vital to establish executive trust and capture high-ticket client enquiries.\n\nWe would be honored to create a complimentary custom homepage mockup tailored exclusively for {{company}}.\n\nThank you for your consideration.\n\nBest Regards,\n\nAbhinandan Dubey\nProgix Technologies LLP\n📞 +1 (916) 702-8905\n✉️ progixtechnology@gmail.com\n🌐 https://www.progixtechnology.com/",
+                    "redesign_subject_template": "Executive Web Audit & Modernization Proposal for {{company}}",
+                    "redesign_body_template": "Hello {{first_name}},\n\nGood day.\n\nWhile performing technical web diagnostics for leading {{industry}} businesses in {{location}}, we analyzed your portal ({{website}}). Our diagnostic suite identified key performance bottlenecks that may be affecting your executive presentation:\n\n• Performance Index: {{performance_score}}/100\n• Mobile Interface Score: {{ui_score}}/100\n• SEO Authority Score: {{seo_score}}/100\n\nKey Diagnostic Points:\n{{suggestions}}\n\nAt Progix Technologies LLP, we engineer ultra-fast, premium web experiences tailored to elevate corporate authority and boost direct bookings.\n\nWould you be available for a brief call or to view a complimentary redesign mockup for {{company}}?\n\nBest Regards,\n\nAbhinandan Dubey\nProgix Technologies LLP\n📞 +1 (916) 702-8905\n✉️ progixtechnology@gmail.com\n🌐 https://www.progixtechnology.com/"
+                }
+            }
+
+            default_country_schedules = {
+                "UAE": {
+                    "country_name": "Dubai (UAE)",
+                    "start_time_ist": "10:00",
+                    "end_time_ist": "14:00",
+                    "locations": ["Dubai, UAE", "Abu Dhabi, UAE", "Sharjah, UAE", "Ajman, UAE", "Ras Al Khaimah, UAE"]
+                },
+                "UK": {
+                    "country_name": "United Kingdom",
+                    "start_time_ist": "15:00",
+                    "end_time_ist": "21:00",
+                    "locations": ["London, UK", "Manchester, UK", "Birmingham, UK", "Leeds, UK", "Glasgow, UK", "Liverpool, UK", "Edinburgh, UK", "Bristol, UK"]
+                },
+                "USA": {
+                    "country_name": "United States",
+                    "start_time_ist": "01:00",
+                    "end_time_ist": "04:00",
+                    "locations": ["New York, NY", "Los Angeles, CA", "Chicago, IL", "Houston, TX", "Phoenix, AZ", "Dallas, TX", "Miami, FL"]
+                }
+            }
             
+            if not doc.get("country_templates"):
+                doc["country_templates"] = default_country_templates
+                update_data["country_templates"] = default_country_templates
+                needs_update = True
+            if not doc.get("country_schedules"):
+                doc["country_schedules"] = default_country_schedules
+                update_data["country_schedules"] = default_country_schedules
+                needs_update = True
+
             if not doc.get("subject_template"):
                 doc["subject_template"] = default_subject
                 update_data["subject_template"] = default_subject

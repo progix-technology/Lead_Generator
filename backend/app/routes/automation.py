@@ -35,6 +35,8 @@ class AutomationSettingsUpdate(BaseModel):
     sendgrid_api_key: Optional[str] = None
     sendgrid_sender: Optional[str] = None
     target_new_businesses_only: Optional[bool] = None
+    country_templates: Optional[Dict[str, Any]] = None
+    country_schedules: Optional[Dict[str, Any]] = None
 
 @router.get("/settings", response_model=Dict[str, Any])
 async def get_settings(

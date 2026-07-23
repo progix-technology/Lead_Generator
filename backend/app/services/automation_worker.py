@@ -69,6 +69,51 @@ def log_progress(msg: str):
     formatted = f"[{timestamp}] {msg}"
     automation_progress.append(formatted)
     
+    if len(automation_progress) > 200:
+        automation_progress = automation_progress[-200:]
+
+def get_active_country_schedule(settings: Dict[str, Any]) -> tuple[str, List[str]]:
+    """
+    Checks current IST time and matches against country_schedules in settings.
+    Returns (active_country_code, active_locations_list).
+    Default fallback: ("USA", settings.get("locations") or LOCATIONS)
+    """
+    from datetime import datetime, timezone, timedelta
+    schedules = settings.get("country_schedules")
+    if not schedules:
+        return "USA", settings.get("locations") or LOCATIONS
+        
+    # IST = UTC + 5:30
+    now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    current_minutes = now_ist.hour * 60 + now_ist.minute
+
+    for country_code, schedule in schedules.items():
+        try:
+            start_str = schedule.get("start_time_ist", "00:00")
+            end_str = schedule.get("end_time_ist", "23:59")
+            
+            s_h, s_m = map(int, start_str.split(":"))
+            e_h, e_m = map(int, end_str.split(":"))
+            
+            start_mins = s_h * 60 + s_m
+            end_mins = e_h * 60 + e_m
+            
+            if start_mins <= end_mins:
+                if start_mins <= current_minutes <= end_mins:
+                    locs = schedule.get("locations") or []
+                    if locs:
+                        return country_code, locs
+            else:
+                # Overnight time range
+                if current_minutes >= start_mins or current_minutes <= end_mins:
+                    locs = schedule.get("locations") or []
+                    if locs:
+                        return country_code, locs
+        except Exception:
+            pass
+
+    return "USA", settings.get("locations") or LOCATIONS
+
     # Sync logs to MongoDB for cross-process visibility (e.g. GitHub Actions -> Render API)
     try:
         loop = asyncio.get_running_loop()
@@ -415,8 +460,10 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                     greeting_name = name if name else "Team"
 
             if is_redesign:
-                subject_tmpl = current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
-                body_tmpl = current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
+                country_templates = current_settings.get("country_templates") or {}
+                c_tmpl = country_templates.get(active_country_code) or country_templates.get("USA") or {}
+                subject_tmpl = c_tmpl.get("redesign_subject_template") or current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
+                body_tmpl = c_tmpl.get("redesign_body_template") or current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
                 website_for_template = website_url or "their website"
                 sug_bullets = "\n".join([f"• {s}" for s in suggestions]) if suggestions else "• Outdated responsive layout and performance bottlenecks."
 
@@ -431,8 +478,10 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                     "performance_score": performance_score, "ui_score": ui_score, "seo_score": seo_score, "suggestions": sug_bullets
                 })
             else:
-                subject_tmpl = current_settings.get("subject_template") or ""
-                body_tmpl = current_settings.get("body_template") or ""
+                country_templates = current_settings.get("country_templates") or {}
+                c_tmpl = country_templates.get(active_country_code) or country_templates.get("USA") or {}
+                subject_tmpl = c_tmpl.get("subject_template") or current_settings.get("subject_template") or ""
+                body_tmpl = c_tmpl.get("body_template") or current_settings.get("body_template") or ""
                 co_website = "your business"
                 co_industry = category
                 co_location = location or "your area"
@@ -478,7 +527,8 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                     "performance_score": performance_score,
                     "ui_score": ui_score,
                     "seo_score": seo_score,
-                    "suggestions": suggestions
+                    "suggestions": suggestions,
+                    "country": active_country_code
                 }
             })
             log_progress(f"Autopilot: ✓ Lead '{name}' queued successfully! (Pending Mailer Dispatch)")
@@ -504,7 +554,7 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
 async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]:
     """
     Grabs one pending email from the database and sends it safely.
-    Dynamically recompiles subject/body at send-time using current active templates.
+    Dynamically recompiles subject/body at send-time using current active country templates.
     """
     import random
     repo = AutomationRepository(db)
@@ -564,10 +614,17 @@ async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]
         log_progress(f"Autopilot Mailer: Skipping redesign lead '{name}' because Redesign is currently disabled.")
         return {"status": "skipped", "reason": "redesign_disabled"}
     
+    # Resolve Country-Specific Templates for Mailer
+    target_country = meta.get("country")
+    if not target_country:
+        target_country, _ = get_active_country_schedule(current_settings)
+
+    country_templates = current_settings.get("country_templates") or {}
+    c_tmpl = country_templates.get(target_country) or country_templates.get("USA") or {}
     
     if is_redesign:
-        subject_tmpl = current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
-        body_tmpl = current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
+        subject_tmpl = c_tmpl.get("redesign_subject_template") or current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
+        body_tmpl = c_tmpl.get("redesign_body_template") or current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
         suggestions = meta.get("suggestions") or ["Outdated responsive layout and performance bottlenecks."]
         sug_bullets = "\n".join([f"• {s}" for s in suggestions]) if isinstance(suggestions, list) else suggestions
         
@@ -584,8 +641,8 @@ async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]
             "suggestions": sug_bullets
         })
     else:
-        subject_tmpl = current_settings.get("subject_template") or ""
-        body_tmpl = current_settings.get("body_template") or ""
+        subject_tmpl = c_tmpl.get("subject_template") or current_settings.get("subject_template") or ""
+        body_tmpl = c_tmpl.get("body_template") or current_settings.get("body_template") or ""
         
         subject = _apply_template(subject_tmpl, {
             "company": name, "first_name": first_name, "website": "your business", "industry": category,

@@ -13,6 +13,8 @@ export default function AutomatedCampaigns() {
   const [bodyTemplate, setBodyTemplate] = useState('');
   const [redesignSubjectTemplate, setRedesignSubjectTemplate] = useState('');
   const [redesignBodyTemplate, setRedesignBodyTemplate] = useState('');
+  const [selectedCountryTab, setSelectedCountryTab] = useState('USA');
+  const [countryTemplates, setCountryTemplates] = useState({});
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [facebookOnly, setFacebookOnly] = useState(false);
@@ -70,7 +72,6 @@ export default function AutomatedCampaigns() {
           if (res && res.progress) {
             setConsoleLogs(res.progress);
 
-            // Periodically refresh records list and stats (every 4.5s / 3 ticks) to update counts and emails live
             if (tick % 3 === 0 || res.is_running === false) {
               const history = await automationService.getRecords(0, 100);
               setRecords(history.data || []);
@@ -78,7 +79,6 @@ export default function AutomatedCampaigns() {
               setTodayCount(history.today_count || 0);
             }
 
-            // Stop polling if the server says autopilot is not running and we've fetched once
             if (res.is_running === false) {
               setTriggeringCycle(false);
               if (!isFirstFetch) {
@@ -118,7 +118,6 @@ export default function AutomatedCampaigns() {
         const stats = await automationService.getQueueStatus();
         if (stats) setQueueMetrics(stats);
         
-        // Concurrently fetch the latest records and stats to keep the entire dashboard in sync
         const history = await automationService.getRecords(0, 100);
         setRecords(history.data || []);
         setTotalCount(history.total_count || 0);
@@ -126,7 +125,7 @@ export default function AutomatedCampaigns() {
       } catch (err) { }
     };
     fetchQueueStatus();
-    interval = setInterval(fetchQueueStatus, 30000); // Poll every 30 seconds (reduced from 5s to save server load)
+    interval = setInterval(fetchQueueStatus, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -143,25 +142,29 @@ export default function AutomatedCampaigns() {
       if (!settings.enabled) {
         localStorage.removeItem(AUTOPILOT_RUN_LOCK_KEY);
       }
-      setSubjectTemplate(settings.subject_template || '');
-      setBodyTemplate(settings.body_template || '');
-      setRedesignSubjectTemplate(settings.redesign_subject_template || '');
-      setRedesignBodyTemplate(settings.redesign_body_template || '');
+
+      const cTmpls = settings.country_templates || {};
+      setCountryTemplates(cTmpls);
+
+      const activeTmpl = cTmpls[selectedCountryTab] || cTmpls['USA'] || {};
+      setSubjectTemplate(activeTmpl.subject_template || settings.subject_template || '');
+      setBodyTemplate(activeTmpl.body_template || settings.body_template || '');
+      setRedesignSubjectTemplate(activeTmpl.redesign_subject_template || settings.redesign_subject_template || '');
+      setRedesignBodyTemplate(activeTmpl.redesign_body_template || settings.redesign_body_template || '');
+
       setCategories(settings.categories || []);
       setLocations(settings.locations || []);
       setFacebookOnly(!!settings.facebook_only);
       setTargetNewBusinessesOnly(!!settings.target_new_businesses_only);
-      setEnableRedesign(settings.enable_redesign !== false); // Default to true
+      setEnableRedesign(settings.enable_redesign !== false);
       setDailyEmailLimit(settings.daily_email_limit || 20);
       setBatchEmailLimit(settings.batch_email_limit || 5);
 
-      // Fetch history records
       const history = await automationService.getRecords(0, 100);
       setRecords(history.data || []);
       setTotalCount(history.total_count || 0);
       setTodayCount(history.today_count || 0);
 
-      // Auto-detect and sync active background campaign runs on mount
       try {
         const prog = await automationService.getProgress();
         if (prog && prog.progress && prog.progress.length > 0) {
@@ -183,6 +186,28 @@ export default function AutomatedCampaigns() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleCountryTabChange = (newTab) => {
+    // 1. Save current active tab inputs into countryTemplates state
+    const updated = {
+      ...countryTemplates,
+      [selectedCountryTab]: {
+        subject_template: subjectTemplate,
+        body_template: bodyTemplate,
+        redesign_subject_template: redesignSubjectTemplate,
+        redesign_body_template: redesignBodyTemplate
+      }
+    };
+    setCountryTemplates(updated);
+    setSelectedCountryTab(newTab);
+    
+    // 2. Load newTab values into form fields
+    const nextTmpl = updated[newTab] || {};
+    setSubjectTemplate(nextTmpl.subject_template || '');
+    setBodyTemplate(nextTmpl.body_template || '');
+    setRedesignSubjectTemplate(nextTmpl.redesign_subject_template || '');
+    setRedesignBodyTemplate(nextTmpl.redesign_body_template || '');
   };
 
   const handleAddCategory = (e) => {
@@ -213,6 +238,17 @@ export default function AutomatedCampaigns() {
     setSavingSettings(true);
     setError('');
     setSuccessMsg('');
+    
+    const finalCountryTemplates = {
+      ...countryTemplates,
+      [selectedCountryTab]: {
+        subject_template: subjectTemplate,
+        body_template: bodyTemplate,
+        redesign_subject_template: redesignSubjectTemplate,
+        redesign_body_template: redesignBodyTemplate
+      }
+    };
+
     try {
       await automationService.updateSettings({
         enabled,
@@ -220,6 +256,7 @@ export default function AutomatedCampaigns() {
         body_template: bodyTemplate,
         redesign_subject_template: redesignSubjectTemplate,
         redesign_body_template: redesignBodyTemplate,
+        country_templates: finalCountryTemplates,
         categories,
         locations,
         facebook_only: facebookOnly,
@@ -228,6 +265,7 @@ export default function AutomatedCampaigns() {
         daily_email_limit: parseInt(dailyEmailLimit) || 20,
         batch_email_limit: parseInt(batchEmailLimit) || 5
       });
+      setCountryTemplates(finalCountryTemplates);
       setSuccessMsg('Autopilot configurations saved successfully!');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (err) {
@@ -539,13 +577,66 @@ export default function AutomatedCampaigns() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          {/* Autopilot Template Configurations */}
+          {/* Autopilot Multi-Country Template & Schedule Manager */}
           <Card className="space-y-4">
-            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-              <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
-                <FiSettings className="text-blue-500" /> Autopilot Template
-              </h3>
-              <span className="text-xs text-gray-400">Pitches sent exclusively to Facebook leads.</span>
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-gray-100 pb-3 gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-gray-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <FiSettings className="text-blue-500" /> Country-Specific Email Templates
+                </h3>
+                <p className="text-xs text-gray-400">Manage tailored outreach pitches & schedules for each target country.</p>
+              </div>
+
+              {/* Country Selector Tabs */}
+              <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => handleCountryTabChange('USA')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    selectedCountryTab === 'USA' ? 'bg-white text-blue-600 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <span>🇺🇸</span> USA
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCountryTabChange('UK')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    selectedCountryTab === 'UK' ? 'bg-white text-blue-600 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <span>🇬🇧</span> UK
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCountryTabChange('UAE')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    selectedCountryTab === 'UAE' ? 'bg-white text-blue-600 shadow-sm border border-gray-200' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  <span>🇦🇪</span> Dubai (UAE)
+                </button>
+              </div>
+            </div>
+
+            {/* Target Schedule Info Banner */}
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex items-center justify-between text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">
+                  {selectedCountryTab === 'USA' ? '🇺🇸' : selectedCountryTab === 'UK' ? '🇬🇧' : '🇦🇪'}
+                </span>
+                <div>
+                  <span className="font-bold text-gray-800">
+                    {selectedCountryTab === 'USA' ? 'United States Target Template' : selectedCountryTab === 'UK' ? 'United Kingdom Target Template' : 'Dubai (UAE) Target Template'}
+                  </span>
+                  <span className="text-gray-500 block text-[11px]">
+                    {selectedCountryTab === 'USA' ? 'Target Window: 01:00 AM – 04:00 AM IST' : selectedCountryTab === 'UK' ? 'Target Window: 03:00 PM – 09:00 PM IST' : 'Target Window: 10:00 AM – 02:00 PM IST'}
+                  </span>
+                </div>
+              </div>
+              <span className="text-[11px] font-semibold text-blue-700 bg-blue-100 px-2.5 py-1 rounded-lg">
+                Time-Slot Active
+              </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">

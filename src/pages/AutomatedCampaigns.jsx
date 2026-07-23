@@ -556,22 +556,6 @@ export default function AutomatedCampaigns() {
               />
             </div>
 
-            {/* Banner linking to Country Templates page */}
-            <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50 border border-blue-100 rounded-xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">🌐</span>
-                <div>
-                  <h4 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Multi-Country Email Templates</h4>
-                  <p className="text-xs text-gray-500">Manage localized outreach pitches for 🇺🇸 USA, 🇬🇧 UK, and 🇦🇪 Dubai (UAE) on the dedicated templates page.</p>
-                </div>
-              </div>
-              <Link
-                to="/country-templates"
-                className="inline-flex items-center justify-center px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-all shadow-sm whitespace-nowrap"
-              >
-                Manage Country Templates ➔
-              </Link>
-            </div>
 
             <div className="flex items-center justify-between pt-2 border-t border-gray-100">
               {successMsg && (

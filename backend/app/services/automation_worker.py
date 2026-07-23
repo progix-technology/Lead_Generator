@@ -76,13 +76,11 @@ def get_active_country_schedule(settings: Dict[str, Any]) -> tuple[str, List[str
     """
     Checks current IST time and matches against country_schedules in settings.
     Returns (active_country_code, active_locations_list).
-    Default fallback: ("USA", settings.get("locations") or LOCATIONS)
+    Strictly uses user-configured locations from MongoDB settings without hardcoded fallbacks.
     """
     from datetime import datetime, timezone, timedelta
-    schedules = settings.get("country_schedules")
-    if not schedules:
-        return "USA", settings.get("locations") or LOCATIONS
-        
+    schedules = settings.get("country_schedules") or {}
+    
     # IST = UTC + 5:30
     now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
     current_minutes = now_ist.hour * 60 + now_ist.minute
@@ -112,10 +110,15 @@ def get_active_country_schedule(settings: Dict[str, Any]) -> tuple[str, List[str
         except Exception:
             pass
 
-    # Return first available country's locations if outside all specific time windows
-    first_code = list(schedules.keys())[0] if schedules else "USA"
-    first_locs = schedules[first_code].get("locations") if schedules and first_code in schedules else (settings.get("locations") or LOCATIONS)
-    return first_code, first_locs or LOCATIONS
+    # If outside all specific time windows, return locations from first user-configured country profile
+    if schedules:
+        first_code = list(schedules.keys())[0]
+        first_locs = schedules[first_code].get("locations") or []
+        if first_locs:
+            return first_code, first_locs
+
+    user_locs = settings.get("locations") or []
+    return "USA", user_locs if user_locs else ["Phoenix, AZ"]
 
 def _safe_str(value: Any, default: str = "") -> str:
     if value is None:
@@ -245,13 +248,14 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         except Exception as e:
             log_progress(f"Autopilot: Warning: AI target recommendation failed: {e}. Falling back to rotation index.")
             
+    active_country_code, active_locations = get_active_country_schedule(current_settings)
+
     if not category or not location:
         search_index = current_settings.get("search_index", 0)
         categories = current_settings.get("categories") or CATEGORIES
-        locations = current_settings.get("locations") or LOCATIONS
         category = categories[search_index % len(categories)]
-        location = locations[(search_index // len(categories)) % len(locations)]
-        log_progress(f"Autopilot: Selected target category: '{category}' | location: '{location}' (Index: {search_index})")
+        location = active_locations[(search_index // len(categories)) % len(active_locations)]
+        log_progress(f"Autopilot: Selected target category: '{category}' | location: '{location}' [Country: {active_country_code}] (Index: {search_index})")
         # Increment search index
         await repo.update_settings({"search_index": search_index + 1})
 

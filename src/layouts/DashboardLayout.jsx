@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import notificationService from '../services/notificationService';
+import automationService from '../services/automationService';
 
 const DashboardLayout = () => {
   const location = useLocation();
@@ -10,6 +11,15 @@ const DashboardLayout = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const panelRef = useRef(null);
+
+  // Live Autopilot City & Country Status State
+  const [liveStatus, setLiveStatus] = useState({
+    isRunning: false,
+    activeCountry: 'USA',
+    activeCity: '',
+    countryFlag: '🇺🇸',
+    scheduleTime: '09:00 AM - 03:00 PM IST'
+  });
 
   const navigation = [
     { name: 'Dashboard', href: '/dashboard', icon: '🏠' },
@@ -22,6 +32,61 @@ const DashboardLayout = () => {
     { name: 'Settings', href: '/settings', icon: '⚙️' },
     { name: 'System Logs', href: '/logs', icon: '📋' },
   ];
+
+  // Poll live country schedule and active city progress
+  useEffect(() => {
+    const checkLiveTarget = async () => {
+      // Calculate active country schedule based on current IST time
+      const now = new Date();
+      // IST offset is UTC+5:30 -> 330 minutes
+      const istTime = new Date(now.getTime() + (330 + now.getTimezoneOffset()) * 60000);
+      const hours = istTime.getHours();
+
+      let country = 'USA';
+      let flag = '🇺🇸';
+      let timeSlot = '09:00 AM - 03:00 PM IST';
+
+      if (hours >= 15 && hours < 21) {
+        country = 'UK';
+        flag = '🇬🇧';
+        timeSlot = '03:00 PM - 09:00 PM IST';
+      } else if (hours >= 21 || hours < 3) {
+        country = 'Dubai (UAE)';
+        flag = '🇦🇪';
+        timeSlot = '09:00 PM - 03:00 AM IST';
+      }
+
+      let isRunning = false;
+      let activeCity = '';
+
+      try {
+        const prog = await automationService.getProgress();
+        if (prog) {
+          isRunning = prog.is_running === true;
+          if (prog.current_query) {
+            const parts = prog.current_query.split(' in ');
+            if (parts.length > 1) {
+              activeCity = parts[1];
+            } else {
+              activeCity = prog.current_query;
+            }
+          }
+        }
+      } catch (e) {}
+
+      setLiveStatus({
+        isRunning,
+        activeCountry: country,
+        activeCity: activeCity || (country === 'UK' ? 'London, England' : country === 'USA' ? 'New York, NY' : 'Dubai, UAE'),
+        countryFlag: flag,
+        scheduleTime: timeSlot
+      });
+    };
+
+    checkLiveTarget();
+    const interval = setInterval(checkLiveTarget, 15000); // refresh every 15 seconds
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch notifications periodically
   useEffect(() => {
@@ -36,7 +101,7 @@ const DashboardLayout = () => {
     };
 
     fetchNotifs();
-    const interval = setInterval(fetchNotifs, 60000); // Poll every 60 seconds (reduced from 15s to save server load)
+    const interval = setInterval(fetchNotifs, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -55,7 +120,6 @@ const DashboardLayout = () => {
     const opening = !showNotifPanel;
     setShowNotifPanel(opening);
     if (opening) {
-      // Refresh notifications when opening
       try {
         const data = await notificationService.getNotifications();
         setNotifications(data.notifications || []);
@@ -163,11 +227,37 @@ const DashboardLayout = () => {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Header */}
+        {/* Top Header Navbar */}
         <header className="h-16 bg-white border-b border-gray-200 flex items-center px-8 justify-between shadow-sm z-20">
-          <h2 className="text-lg font-semibold text-gray-800">
-            {navigation.find(n => n.href === location.pathname)?.name || 'Dashboard'}
-          </h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-lg font-semibold text-gray-800">
+              {navigation.find(n => n.href === location.pathname)?.name || 'Dashboard'}
+            </h2>
+
+            {/* Live Autopilot Active Country & City Badge */}
+            <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold transition-all shadow-xs ${
+              liveStatus.isRunning 
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+                : 'bg-indigo-50 text-indigo-800 border-indigo-200'
+            }`}>
+              <span className="relative flex h-2.5 w-2.5">
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                  liveStatus.isRunning ? 'bg-emerald-400' : 'bg-indigo-400'
+                }`}></span>
+                <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
+                  liveStatus.isRunning ? 'bg-emerald-500' : 'bg-indigo-500'
+                }`}></span>
+              </span>
+              <span className="text-sm">{liveStatus.countryFlag}</span>
+              <span>
+                {liveStatus.isRunning ? (
+                  <span>LIVE TARGET: <span className="font-extrabold text-emerald-950">{liveStatus.activeCity}</span> ({liveStatus.activeCountry})</span>
+                ) : (
+                  <span>ACTIVE SLOT: <span className="font-extrabold text-indigo-950">{liveStatus.activeCountry}</span> ({liveStatus.scheduleTime})</span>
+                )}
+              </span>
+            </div>
+          </div>
           
           {/* Notification Bell */}
           <div className="relative" ref={panelRef}>

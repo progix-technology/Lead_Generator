@@ -340,11 +340,11 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 suggestions = audit_results["suggestions"]
                 
                 avg_score = (seo_score + ui_score + performance_score) / 3
-                if avg_score < 70:
+                if avg_score < 60:
                     is_redesign = True
-                    log_progress(f"Autopilot: Lead '{name}' has website flaws (Score: {avg_score:.1f}/100 < 70). Added to redesign queue.")
+                    log_progress(f"Autopilot: Lead '{name}' has website flaws (Score: {avg_score:.1f}/100 < 60). Added to redesign queue.")
                 else:
-                    log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100 >= 70). Skipping.")
+                    log_progress(f"Autopilot: Lead '{name}' has a healthy website (Score: {avg_score:.1f}/100 >= 60). Skipping.")
                     return 0
             except Exception as audit_err:
                 is_redesign = True
@@ -691,13 +691,54 @@ async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]
         push_notification("error", f"SMTP send failed for '{name}' ({email}): {err_msg}", source="email")
         return {"status": "failed"}
 
+def _is_any_country_schedule_active(config: dict) -> tuple[bool, str]:
+    """
+    Checks if the current IST time falls inside ANY configured country schedule window.
+    Returns (is_active: bool, reason: str).
+    """
+    from datetime import timezone, timedelta
+    schedules = config.get("country_schedules") or {}
+    
+    if not schedules:
+        # No country schedules configured — fall back to old 9 AM - 6 PM IST rule
+        now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+        current_hour = now_ist.hour
+        if 9 <= current_hour < 18:
+            return True, "Default window (9 AM - 6 PM IST) is active"
+        return False, f"Outside default working hours (9 AM - 6 PM IST). Current IST: {now_ist.strftime('%H:%M')}"
+    
+    now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    current_minutes = now_ist.hour * 60 + now_ist.minute
+    
+    for country_code, schedule in schedules.items():
+        try:
+            start_str = schedule.get("start_time_ist", "00:00")
+            end_str = schedule.get("end_time_ist", "23:59")
+            locs = schedule.get("locations") or []
+            if not locs:
+                continue
+            start_mins = parse_time_to_minutes(start_str)
+            end_mins = parse_time_to_minutes(end_str)
+            
+            if start_mins <= end_mins:
+                if start_mins <= current_minutes <= end_mins:
+                    return True, f"Country '{country_code}' schedule is active ({start_str} - {end_str} IST)"
+            else:
+                # Overnight window
+                if current_minutes >= start_mins or current_minutes <= end_mins:
+                    return True, f"Country '{country_code}' overnight schedule is active ({start_str} - {end_str} IST)"
+        except Exception:
+            pass
+    
+    return False, f"No country schedule is active right now (IST: {now_ist.strftime('%H:%M')}). Pausing until next window."
+
+
 async def run_mailer_scheduler():
     """
     Runs continuously, picking up pending emails and sending them with a 3-4 min jitter delay.
-    Strictly runs only between 9 AM and 6 PM IST (Asia/Kolkata).
+    Runs according to country-wise schedule windows configured in Settings.
     """
     import random
-    from zoneinfo import ZoneInfo
     logger.info("Autopilot Mailer: Background loop started.")
     await asyncio.sleep(20)
     
@@ -710,18 +751,15 @@ async def run_mailer_scheduler():
                 await asyncio.sleep(5)
                 continue
 
-            # Check working hours constraint (9 AM - 6 PM IST)
-            ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
-            current_hour = ist_now.hour
-            
-            if current_hour < 9 or current_hour >= 18:
-                log_progress(f"Autopilot Mailer: Current time ({ist_now.strftime('%H:%M:%S')} IST) is outside working hours (9 AM - 6 PM). Pausing mailer.")
-                # Sleep for 15 minutes before checking time again
-                await asyncio.sleep(900)
-                continue
-
             repo = AutomationRepository(db)
             config = await repo.get_settings()
+
+            # Check country-schedule-based time window
+            is_active, schedule_reason = _is_any_country_schedule_active(config)
+            if not is_active:
+                log_progress(f"Autopilot Mailer: {schedule_reason}. Sleeping 15 min...")
+                await asyncio.sleep(900)
+                continue
             
             if config.get("enabled", False):
                 # Count only sent emails for the daily limit
@@ -751,9 +789,8 @@ async def run_mailer_scheduler():
 async def run_scraper_scheduler():
     """
     Runs the scraper periodically to keep the queue filled.
-    Strictly runs only between 9 AM and 6 PM IST (Asia/Kolkata).
+    Runs according to country-wise schedule windows configured in Settings.
     """
-    from zoneinfo import ZoneInfo
     logger.info("Autopilot Scraper: Background loop started.")
     await asyncio.sleep(15)
     
@@ -762,17 +799,15 @@ async def run_scraper_scheduler():
     
     while True:
         try:
-            # Check working hours constraint (9 AM - 6 PM IST)
-            ist_now = datetime.now(ZoneInfo("Asia/Kolkata"))
-            current_hour = ist_now.hour
-            
-            if current_hour < 9 or current_hour >= 18:
-                # Sleep for 15 minutes before checking time again
+            repo = AutomationRepository(db)
+            config = await repo.get_settings()
+
+            # Check country-schedule-based time window
+            is_active, _ = _is_any_country_schedule_active(config)
+            if not is_active:
                 await asyncio.sleep(900)
                 continue
 
-            repo = AutomationRepository(db)
-            config = await repo.get_settings()
             if config.get("enabled", False):
                 enable_redesign = config.get("enable_redesign", True)
                 if enable_redesign:

@@ -14,6 +14,14 @@ def send_smtp_email_sync(to_email: str, subject: str, html_content: str, smtp_co
     Supports TLS & SSL encryption, auto-port failover (587 -> 465), and dynamic DB overrides.
     """
     import socket
+    from app.services.email_verifier import is_email_sendable
+
+    # 0. Pre-flight check — block platform/disposable/no-reply emails before SMTP
+    can_send, preflight_reason = is_email_sendable(to_email)
+    if not can_send:
+        logger.warning(f"SMTP send blocked (pre-flight): {to_email} — {preflight_reason}")
+        return False
+
     # 1. Resolve credentials from custom config or fallback to .env settings
     host = (smtp_config or {}).get("smtp_host") or settings.SMTP_HOST or "smtp.gmail.com"
     port = (smtp_config or {}).get("smtp_port") or settings.SMTP_PORT or 587

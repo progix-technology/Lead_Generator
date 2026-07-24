@@ -220,3 +220,79 @@ async def generate_ai_search_query(recent_targets: list, custom_api_key: Optiona
     """Asynchronously calls generate_ai_search_query_sync."""
     return await asyncio.to_thread(generate_ai_search_query_sync, recent_targets, custom_api_key)
 
+def generate_ai_redesign_email_sync(
+    company_name: str,
+    first_name: str,
+    website: str,
+    industry: str,
+    location: str,
+    suggestions: list,
+    performance_score: int,
+    ui_score: int,
+    seo_score: int,
+    custom_api_key: Optional[str] = None
+) -> Optional[Dict[str, str]]:
+    """Uses OpenRouter to write a highly personalized email highlighting the specific flaws found on the website."""
+    api_key = custom_api_key or settings.OPENROUTER_API_KEY
+    if not api_key:
+        return None
+
+    flaws_text = "\\n- ".join(suggestions)
+    prompt = f"""
+    You are a professional web designer writing a cold email to '{first_name}' at '{company_name}', a {industry} business in {location}.
+    We just ran a technical audit on their website ({website}) and found some critical issues:
+    - Performance/Speed Score: {performance_score}/100
+    - UI/UX Score: {ui_score}/100
+    - SEO Score: {seo_score}/100
+    
+    Here are the main flaws we found:
+    - {flaws_text}
+    
+    Write a short, highly personalized, friendly, and persuasive cold email.
+    1. Start by complementing them or mentioning you were looking at their business.
+    2. Gently point out 1-2 of the specific flaws found above (don't sound robotic or like a generic audit report).
+    3. Conclude by offering to fix these issues with a modern redesign to help them get more local clients.
+    4. Keep it concise (under 120 words). Don't use overly formal language.
+    
+    The output MUST be a JSON object containing:
+    1. "subject": "a catchy, non-salesy subject line"
+    2. "body": "the personalized email body text (use simple text, no HTML tags, use \\n for newlines)"
+    
+    Return ONLY a JSON block, nothing else. Format:
+    {{"subject": "...", "body": "..."}}
+    """
+    
+    res = make_openrouter_request(prompt, response_format_json=True, max_tokens=400, custom_api_key=api_key)
+    if res:
+        try:
+            clean_res = res.strip()
+            if clean_res.startswith("```"):
+                clean_res = clean_res.split("json")[-1].split("```")[0].strip()
+            parsed = json.loads(clean_res)
+            if parsed.get("subject") and parsed.get("body"):
+                return {
+                    "subject": parsed["subject"],
+                    "body": parsed["body"]
+                }
+        except Exception as e:
+            logger.error(f"Failed to parse AI redesign email JSON: {e}")
+            
+    return None
+
+async def generate_ai_redesign_email(
+    company_name: str,
+    first_name: str,
+    website: str,
+    industry: str,
+    location: str,
+    suggestions: list,
+    performance_score: int,
+    ui_score: int,
+    seo_score: int,
+    custom_api_key: Optional[str] = None
+) -> Optional[Dict[str, str]]:
+    return await asyncio.to_thread(
+        generate_ai_redesign_email_sync, company_name, first_name, website, industry, location, 
+        suggestions, performance_score, ui_score, seo_score, custom_api_key
+    )
+

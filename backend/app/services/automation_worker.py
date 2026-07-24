@@ -638,23 +638,43 @@ async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]
     c_tmpl = country_templates.get(target_country) or country_templates.get("USA") or {}
     
     if is_redesign:
-        subject_tmpl = c_tmpl.get("redesign_subject_template") or current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
-        body_tmpl = c_tmpl.get("redesign_body_template") or current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
+        openrouter_key = current_settings.get("openrouter_api_key")
         suggestions = meta.get("suggestions") or ["Outdated responsive layout and performance bottlenecks."]
-        sug_bullets = "\n".join([f"• {s}" for s in suggestions]) if isinstance(suggestions, list) else suggestions
-        
-        subject = _apply_template(subject_tmpl, {
-            "company": name, "first_name": first_name, "website": website,
-            "industry": category, "location": location
-        })
-        body = _apply_template(body_tmpl, {
-            "company": name, "first_name": first_name, "website": website,
-            "industry": category, "location": location,
-            "performance_score": meta.get("performance_score") or 64,
-            "ui_score": meta.get("ui_score") or 58,
-            "seo_score": meta.get("seo_score") or 62,
-            "suggestions": sug_bullets
-        })
+        perf_score = meta.get("performance_score") or 64
+        ui_score = meta.get("ui_score") or 58
+        seo_score = meta.get("seo_score") or 62
+
+        ai_generated = None
+        if openrouter_key:
+            from app.services.llm_service import generate_ai_redesign_email
+            log_progress(f"Autopilot Mailer: Generating AI personalized redesign email for {name} based on their website flaws...")
+            ai_generated = await generate_ai_redesign_email(
+                company_name=name, first_name=first_name, website=website, industry=category, location=location,
+                suggestions=suggestions, performance_score=perf_score, ui_score=ui_score, seo_score=seo_score,
+                custom_api_key=openrouter_key
+            )
+
+        if ai_generated:
+            subject = ai_generated["subject"]
+            body = ai_generated["body"]
+        else:
+            # Fallback to static template
+            subject_tmpl = c_tmpl.get("redesign_subject_template") or current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
+            body_tmpl = c_tmpl.get("redesign_body_template") or current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
+            sug_bullets = "\n".join([f"• {s}" for s in suggestions]) if isinstance(suggestions, list) else suggestions
+            
+            subject = _apply_template(subject_tmpl, {
+                "company": name, "first_name": first_name, "website": website,
+                "industry": category, "location": location
+            })
+            body = _apply_template(body_tmpl, {
+                "company": name, "first_name": first_name, "website": website,
+                "industry": category, "location": location,
+                "performance_score": perf_score,
+                "ui_score": ui_score,
+                "seo_score": seo_score,
+                "suggestions": sug_bullets
+            })
     else:
         subject_tmpl = c_tmpl.get("subject_template") or current_settings.get("subject_template") or ""
         body_tmpl = c_tmpl.get("body_template") or current_settings.get("body_template") or ""

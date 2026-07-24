@@ -23,11 +23,13 @@ def send_smtp_email_sync(to_email: str, subject: str, html_content: str, smtp_co
         return False
 
     # 1. Resolve credentials from custom config or fallback to .env settings
-    host = (smtp_config or {}).get("smtp_host") or settings.SMTP_HOST or "smtp.gmail.com"
-    port = (smtp_config or {}).get("smtp_port") or settings.SMTP_PORT or 587
-    username = (smtp_config or {}).get("smtp_email") or settings.SMTP_USERNAME
-    password = (smtp_config or {}).get("smtp_password") or settings.SMTP_PASSWORD
-    from_email = (smtp_config or {}).get("smtp_email") or settings.SMTP_FROM_EMAIL or settings.SMTP_USERNAME
+    smtp_config = smtp_config or {}
+    host = smtp_config.get("smtp_host") or settings.SMTP_HOST
+    port = smtp_config.get("smtp_port") or settings.SMTP_PORT
+    # In the DB schema, smtp_email acts as the username/sender. 
+    username = smtp_config.get("smtp_username") or smtp_config.get("smtp_email") or settings.SMTP_USERNAME
+    password = smtp_config.get("smtp_password") or settings.SMTP_PASSWORD
+    from_email = smtp_config.get("smtp_email") or settings.SMTP_FROM_EMAIL or username or settings.SMTP_USERNAME
 
     # Convert port safely
     try:

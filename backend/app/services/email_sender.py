@@ -100,17 +100,34 @@ async def send_smtp_email(to_email: str, subject: str, html_content: str, smtp_c
     """
     Unified entry point for sending emails.
     Supports SMTP, Resend API (HTTP), and SendGrid API (HTTP).
+    Includes automatic fallback to Resend if SMTP fails.
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     config = smtp_config or {}
     provider = config.get("email_service_provider") or "SMTP"
     
-    if provider == "Resend":
-        return await send_resend_email(to_email, subject, html_content, config)
-    elif provider == "SendGrid":
-        return await send_sendgrid_email(to_email, subject, html_content, config)
-    else:
-        # Standard SMTP Fallback
-        return await asyncio.to_thread(send_smtp_email_sync, to_email, subject, html_content, smtp_config)
+    try:
+        if provider == "Resend":
+            return await send_resend_email(to_email, subject, html_content, config)
+        elif provider == "SendGrid":
+            return await send_sendgrid_email(to_email, subject, html_content, config)
+        else:
+            # Standard SMTP Fallback
+            return await asyncio.to_thread(send_smtp_email_sync, to_email, subject, html_content, config)
+    except Exception as e:
+        # AUTOMATIC FALLBACK: If primary provider (SMTP) fails and Resend key is available, try Resend
+        if provider != "Resend" and config.get("resend_api_key"):
+            logger.warning(f"Primary provider '{provider}' failed ({e}). Auto-falling back to Resend API...")
+            try:
+                return await send_resend_email(to_email, subject, html_content, config)
+            except Exception as resend_err:
+                logger.error(f"Fallback Resend API also failed: {resend_err}")
+                raise Exception(f"{provider} failed ({str(e)}) AND Fallback Resend failed ({str(resend_err)})")
+        
+        # If no fallback available or it's already Resend, re-raise original error
+        raise e
 
 async def send_resend_email(to_email: str, subject: str, html_content: str, config: dict) -> bool:
     import httpx

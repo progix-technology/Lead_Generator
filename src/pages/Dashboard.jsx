@@ -256,7 +256,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <div className="h-[280px] w-full pt-4">
+        <div className="w-full pt-4 pb-2">
           {(() => {
             // Filter records by selected graph country
             let graphRecords = records;

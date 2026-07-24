@@ -178,25 +178,24 @@ def generate_ai_search_query_sync(recent_targets: list, custom_api_key: Optional
         return "Plumbers", "Sacramento, CA"
 
     prompt = f"""
-    We are scraping Google Maps to find US businesses that DO NOT have a website, so we can pitch them website design services.
-    Recommend a target US local business niche/category and a specific target US city and state (e.g. "Locksmiths", "Davenport, IA") where there is a high probability of finding small businesses without websites.
+    We are scraping Google Maps to find local businesses globally (with a heavy focus on USA, UK, Canada, Australia, and UAE/Dubai) that DO NOT have a website, so we can pitch them website design services.
+    Recommend a target local business niche/category and a specific target city/state/country (e.g. "Locksmiths", "Davenport, IA, USA" or "Attar and Perfume Shops", "Dubai, UAE") where there is a high probability of finding small businesses without websites.
     
     You MUST NOT choose any of these recently targeted combinations (avoid them!): {recent_targets}
     
     Guidelines for high website-less lead conversion:
     1. Target a balanced mix of these two business types:
-       - HIGH-PAYING PREMIUM CLIENTS (High ticket value): Restaurants, Cafes, Bakeries, Laundry Services, Bars, Gyms, Spas, Hotels, Travel Agencies, Dentists, Biscuit Factories. (Focus on local, independent, or newly opened ones that might lack websites).
+       - HIGH-PAYING PREMIUM CLIENTS (High ticket value): Attar and Perfume Shops, Dates and Sweets Shops, Restaurants, Cafes, Bakeries, Spa, Gyms, Travel Agencies, Dentists, Biscuit Factories. (Focus on local, independent shops that might lack websites).
        - EASY VOLUME CLIENTS (Often run without websites): Locksmiths, Towing Services, Junk Removal, Tree Services, Appliance Repair, Drywall Contractors, Concrete Contractors, Fence Contractors, Painting Contractors, Window Cleaning, Carpet Cleaning.
-    2. Select smaller or mid-sized US cities, towns, or outer suburbs (population 30k - 150k) in states like TX, FL, NC, OH, GA, MI, PA, etc. 
-       - Smaller towns and rural-suburban hubs have much lower website adoption than major metropolitan or tech-heavy cities.
+    2. Select smaller or mid-sized cities/suburbs, or specific busy commercial districts in major hubs like Dubai (e.g. "Deira, Dubai" or "Bur Dubai").
     3. STRICT RULE: You MUST NOT recommend any technology, IT services, SEO, digital marketing, software development, web design, or tech consulting categories. We only target brick-and-mortar local businesses, contractors, medical, or lifestyle niches.
     
     The output MUST be a JSON object containing:
     1. "category": "Category Name"
-    2. "location": "City, State"
+    2. "location": "City, State/Country"
     
     Return ONLY a JSON block, nothing else. Format:
-    {{"category": "Locksmiths", "location": "Davenport, IA"}}
+    {{"category": "Attar and Perfume Shops", "location": "Deira, Dubai, UAE"}}
     """
 
     res = make_openrouter_request(prompt, response_format_json=True, max_tokens=200, custom_api_key=api_key)

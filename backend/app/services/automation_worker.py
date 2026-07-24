@@ -840,14 +840,14 @@ async def run_scraper_scheduler():
                 else:
                     pending_count = await repo.count_pending_standard_records()
                 
-                # Keep queue stocked with at least 15-20 leads
-                if pending_count < 20:
-                    log_progress(f"Autopilot Scraper: Queue has {pending_count} active leads. Starting search for more...")
+                # Keep queue stocked with at least 50 leads
+                if pending_count < 50:
+                    log_progress(f"Autopilot Scraper: Queue has {pending_count} active leads (Target: 50). Starting search for more...")
                     await run_automation_cycle(db)
+                    await asyncio.sleep(30) # Only wait 30 seconds before searching again if queue is still low
                 else:
                     # Plenty of leads in queue, rest.
-                    pass
-                await asyncio.sleep(300) # Check queue size every 5 mins
+                    await asyncio.sleep(180) # Check queue size every 3 mins
             else:
                 await asyncio.sleep(60)
         except Exception as e:

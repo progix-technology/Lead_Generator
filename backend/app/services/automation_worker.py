@@ -777,8 +777,8 @@ async def run_mailer_scheduler():
             # Check country-schedule-based time window
             is_active, schedule_reason = _is_any_country_schedule_active(config)
             if not is_active:
-                log_progress(f"Autopilot Mailer: {schedule_reason}. Sleeping 15 min...")
-                await asyncio.sleep(900)
+                log_progress(f"Autopilot Mailer: {schedule_reason}. Sleeping 1 min...")
+                await asyncio.sleep(60)
                 continue
             
             if config.get("enabled", False):
@@ -800,11 +800,13 @@ async def run_mailer_scheduler():
                         log_progress(f"Autopilot Mailer: Sleeping for {delay} seconds (1-1.5 mins) before next send.")
                         await asyncio.sleep(delay)
                     else:
-                        # No pending emails, check again in 30 seconds
-                        await asyncio.sleep(30)
+                        # Queue might be empty, or no schedule active
+                        msg = result.get("message", "")
+                        log_progress(f"Autopilot Mailer: {msg}. Sleeping 1 min...")
+                        await asyncio.sleep(60)
                 else:
                     log_progress(f"Autopilot Mailer: Daily limit of {daily_limit} reached. Pausing until tomorrow.")
-                    await asyncio.sleep(1800)
+                    await asyncio.sleep(3600)
             else:
                 await asyncio.sleep(30)
         except Exception as e:
@@ -830,7 +832,7 @@ async def run_scraper_scheduler():
             # Check country-schedule-based time window
             is_active, _ = _is_any_country_schedule_active(config)
             if not is_active:
-                await asyncio.sleep(900)
+                await asyncio.sleep(60)
                 continue
 
             if config.get("enabled", False):

@@ -15,6 +15,7 @@ def get_automation_repo(db: AsyncIOMotorDatabase = Depends(get_database)) -> Aut
 
 class AutomationSettingsUpdate(BaseModel):
     enabled: Optional[bool] = None
+    mailer_enabled: Optional[bool] = None
     subject_template: Optional[str] = None
     body_template: Optional[str] = None
     redesign_subject_template: Optional[str] = None

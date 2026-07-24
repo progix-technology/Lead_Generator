@@ -10,6 +10,7 @@ const AUTOPILOT_RUN_LOCK_KEY = 'autopilot_manual_run_locked';
 
 export default function AutomatedCampaigns() {
   const [enabled, setEnabled] = useState(false);
+  const [mailerEnabled, setMailerEnabled] = useState(true);
   const [categories, setCategories] = useState([]);
   const [locations, setLocations] = useState([]);
   const [facebookOnly, setFacebookOnly] = useState(false);
@@ -132,6 +133,7 @@ export default function AutomatedCampaigns() {
       // Fetch settings
       const settings = await automationService.getSettings();
       setEnabled(settings.enabled);
+      setMailerEnabled(settings.mailer_enabled !== false);
       const runLockFlag = localStorage.getItem(AUTOPILOT_RUN_LOCK_KEY) === '1';
       setManualRunLocked(settings.enabled ? runLockFlag : false);
       if (!settings.enabled) {
@@ -206,6 +208,7 @@ export default function AutomatedCampaigns() {
     try {
       await automationService.updateSettings({
         enabled,
+        mailer_enabled: mailerEnabled,
         categories,
         locations,
         facebook_only: facebookOnly,
@@ -224,6 +227,30 @@ export default function AutomatedCampaigns() {
     }
   };
 
+  const handleToggleMailer = async (checked) => {
+    setMailerEnabled(checked);
+    setError('');
+    setSuccessMsg('');
+    try {
+      await automationService.updateSettings({
+        enabled,
+        mailer_enabled: checked,
+        categories,
+        locations,
+        facebook_only: facebookOnly,
+        target_new_businesses_only: targetNewBusinessesOnly,
+        enable_redesign: enableRedesign,
+        daily_email_limit: parseInt(dailyEmailLimit) || 20,
+        batch_email_limit: parseInt(batchEmailLimit) || 5
+      });
+      setSuccessMsg(checked ? 'Mailer is now active! 📧' : 'Mailer paused (Leads will only queue).');
+      setTimeout(() => setSuccessMsg(''), 4000);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to toggle mailer status.');
+    }
+  };
+
   const handleToggleAutopilot = async (checked) => {
     setEnabled(checked);
     setError('');
@@ -231,6 +258,7 @@ export default function AutomatedCampaigns() {
     try {
       await automationService.updateSettings({
         enabled: checked,
+        mailer_enabled: mailerEnabled,
         categories,
         locations,
         facebook_only: facebookOnly,
@@ -384,6 +412,23 @@ export default function AutomatedCampaigns() {
                 onChange={(e) => handleToggleAutopilot(e.target.checked)}
               />
               <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          {/* Mailer Toggle Switch */}
+          <div className="flex items-center bg-slate-800 border-2 border-slate-600 px-4 h-10 rounded-2xl shadow-sm whitespace-nowrap" title="Turn OFF to only scrape leads without sending emails.">
+            <span className="text-xs font-bold text-slate-100 mr-2.5 flex items-center gap-1.5">
+              <FiMail className={`${mailerEnabled ? 'text-green-400' : 'text-amber-400'}`} />
+              Mailer:
+            </span>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                className="sr-only peer"
+                checked={mailerEnabled}
+                onChange={(e) => handleToggleMailer(e.target.checked)}
+              />
+              <div className="w-9 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
             </label>
           </div>
 

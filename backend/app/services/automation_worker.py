@@ -762,6 +762,11 @@ async def run_mailer_scheduler():
                 continue
             
             if config.get("enabled", False):
+                if config.get("mailer_enabled", True) is False:
+                    log_progress("Autopilot Mailer: Mailer is paused in settings. Queueing leads but not sending emails.")
+                    await asyncio.sleep(60)
+                    continue
+
                 # Count only sent emails for the daily limit
                 sent_today = await repo.count_records_today()
                 daily_limit = config.get("daily_email_limit", 20)

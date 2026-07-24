@@ -67,10 +67,10 @@ def send_smtp_email_sync(to_email: str, subject: str, html_content: str, smtp_co
 
         if target_port == 465:
             logger.info(f"SMTP: Connecting via Secure SSL to {host} ({ipv4_target}):{target_port}...")
-            return smtplib.SMTP_SSL(ipv4_target, target_port, timeout=45)
+            return smtplib.SMTP_SSL(ipv4_target, target_port, timeout=120)
         else:
             logger.info(f"SMTP: Connecting via TLS to {host} ({ipv4_target}):{target_port}...")
-            srv = smtplib.SMTP(ipv4_target, target_port, timeout=45)
+            srv = smtplib.SMTP(ipv4_target, target_port, timeout=120)
             srv.starttls()
             return srv
 

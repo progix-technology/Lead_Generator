@@ -771,8 +771,8 @@ async def run_mailer_scheduler():
                 if sent_today < daily_limit:
                     result = await run_mailer_cycle(db, exclude_redesign=exclude_redesign)
                     if result.get("status") in ["sent", "failed"]:
-                        delay = random.randint(180, 240)
-                        log_progress(f"Autopilot Mailer: Sleeping for {delay} seconds (3-4 mins) before next send to protect SMTP reputation.")
+                        delay = random.randint(60, 90)
+                        log_progress(f"Autopilot Mailer: Sleeping for {delay} seconds (1-1.5 mins) before next send.")
                         await asyncio.sleep(delay)
                     else:
                         # No pending emails, check again in 30 seconds

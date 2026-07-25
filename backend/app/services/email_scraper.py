@@ -462,15 +462,22 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
             import httpx
             from bs4 import BeautifulSoup
             
+            USER_AGENTS = [
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36 Edg/121.0.0.0"
+            ]
             headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Content-Type": "application/x-www-form-urlencoded"
+                "User-Agent": random.choice(USER_AGENTS),
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5"
             }
-            url = "https://html.duckduckgo.com/html/"
-            data = {"q": query}
+            url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(query)}"
             
             async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
-                r = await client.post(url, headers=headers, data=data)
+                r = await client.get(url, headers=headers)
                 if r.status_code not in (200, 201, 202):
                     logger.warning(f"DDG search failed for query '{query}': HTTP {r.status_code}")
                     return []
@@ -520,11 +527,17 @@ async def query_yahoo_fallback(query: str) -> Tuple[List[str], List[str]]:
     import re
     from bs4 import BeautifulSoup
     
+    USER_AGENTS = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0"
+    ]
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "User-Agent": random.choice(USER_AGENTS),
         "Accept-Language": "en-US,en;q=0.9"
     }
-    url = f"https://search.yahoo.com/search?p={urllib.parse.quote_plus(query)}"
+    subdomain = random.choice(['search', 'uk.search', 'in.search', 'ca.search', 'au.search'])
+    url = f"https://{subdomain}.yahoo.com/search?p={urllib.parse.quote_plus(query)}"
     links = []
     text_emails = []
     

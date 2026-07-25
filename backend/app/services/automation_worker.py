@@ -458,21 +458,8 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                     })
                     return 0
 
-            # Resolve Smart Greeting Name via AI
-            greeting_name = await clean_first_name_with_ai(email, name, custom_api_key=current_settings.get("openrouter_api_key"))
-            
-            # SMART FALLBACK: If AI fails, determine a professional greeting
-            if not greeting_name:
-                email_prefix = email.split("@")[0].lower()
-                generic_prefixes = ["info", "contact", "support", "admin", "sales", "hello", "team", "mail", "office", "marketing"]
-                company_squished = name.replace(" ", "").lower() if name else ""
-                
-                # Check if email prefix looks like a personal first name (not generic, length > 2, only letters, and not the company name itself)
-                if not any(g in email_prefix for g in generic_prefixes) and len(email_prefix) > 2 and email_prefix.isalpha() and email_prefix not in company_squished:
-                    greeting_name = email_prefix.capitalize()
-                else:
-                    # Fallback to the exact full company name
-                    greeting_name = name if name else "Team"
+            # Resolve Greeting Name: Use company name in all caps followed by TEAM
+            greeting_name = f"{name.upper()} TEAM" if name else "TEAM"
 
             if is_redesign:
                 country_templates = current_settings.get("country_templates") or {}
@@ -591,16 +578,8 @@ async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]
     meta = record.get("metadata") or {}
     first_name_candidate = meta.get("first_name")
     
-    # Clean greeting names: If first name candidate was saved as a single cut word of a multi-word company,
-    # or is generic, fall back to the full company name (name).
-    first_name = name if name else "Team"
-    if first_name_candidate and len(first_name_candidate) > 2 and first_name_candidate.lower() not in ["team", "there"]:
-        words = (name or "").split()
-        # If it's just the first word of a multi-word company (case-insensitive check), replace it with the full company name
-        if len(words) > 1 and first_name_candidate.lower().strip() == words[0].lower().strip():
-            first_name = name
-        else:
-            first_name = first_name_candidate
+    # Use the full company name in capitals followed by "TEAM" to ensure a highly relevant greeting.
+    first_name = f"{name.upper()} TEAM" if name else "TEAM"
             
     website = meta.get("website") or "your business"
     

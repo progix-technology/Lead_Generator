@@ -160,16 +160,25 @@ async def get_progress(
         active_country_code, active_locations = get_active_country_schedule(config)
         active_city = active_locations[0] if active_locations else ""
         
+        active_schedule_time = ""
+        schedules = config.get("country_schedules", {})
+        if active_country_code in schedules:
+            st = schedules[active_country_code].get("start_time_ist", "")
+            et = schedules[active_country_code].get("end_time_ist", "")
+            if st and et:
+                active_schedule_time = f"{st} - {et} IST"
+        
         return {
             "progress": live_logs,
             "is_running": is_running,
             "active_country": active_country_code,
-            "active_city": active_city
+            "active_city": active_city,
+            "active_schedule_time": active_schedule_time
         }
     except Exception as e:
         logger.warning(f"DB connection glitch in get_progress: {e}")
         from app.services.automation_worker import automation_progress
-        return {"progress": automation_progress, "is_running": True, "active_country": "USA", "active_city": ""}
+        return {"progress": automation_progress, "is_running": True, "active_country": "USA", "active_city": "", "active_schedule_time": ""}
 
 @router.post("/resend/{record_id}", response_model=Dict[str, Any])
 async def resend_failed_email(

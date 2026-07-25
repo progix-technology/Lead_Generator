@@ -69,6 +69,10 @@ const DashboardLayout = () => {
             flag = country === 'UK' ? '🇬🇧' : country.includes('UAE') ? '🇦🇪' : '🇺🇸';
           }
           
+          if (prog.active_schedule_time) {
+            timeSlot = prog.active_schedule_time;
+          }
+          
           if (prog.active_city) {
             activeCity = prog.active_city;
           } else if (prog.current_query) {

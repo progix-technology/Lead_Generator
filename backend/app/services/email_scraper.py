@@ -480,7 +480,8 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
             async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
                 r = await client.get(url, headers=headers)
                 if r.status_code not in (200, 201, 202):
-                    logger.warning(f"DDG search failed for query '{query}': HTTP {r.status_code}")
+                    if r.status_code not in (403, 429):
+                        logger.warning(f"DDG search failed for query '{query}': HTTP {r.status_code}")
                     return []
 
                 soup = BeautifulSoup(r.text, "html.parser")
@@ -501,7 +502,9 @@ async def ddg_lite_search(query: str, extract_snippets: bool = False) -> List[st
 
                 return results
         except Exception as e:
-            logger.error(f"DDG search error: {e}")
+            err_str = str(e).lower()
+            if not any(x in err_str for x in ["403", "429", "timeout", "connect"]) and err_str.strip():
+                logger.error(f"DDG search error: {e}")
             return []
 
 async def ddg_lite_search_fanout(queries: List[str], extract_snippets: bool = False, max_results: int = 5) -> List[str]:
@@ -543,6 +546,7 @@ async def query_yahoo_fallback(query: str) -> Tuple[List[str], List[str]]:
     text_emails = []
     
     try:
+        await asyncio.sleep(random.uniform(1.0, 3.0))
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=headers, timeout=10.0)
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -565,7 +569,9 @@ async def query_yahoo_fallback(query: str) -> Tuple[List[str], List[str]]:
                 if not any(x in m_lower for x in ['yahoo', 'yimg', 'microsoft', 'google', 'png', 'jpg', 'example', 'sentry', 'bootstrap', 'w3.org']):
                     text_emails.append(m_lower)
     except Exception as e:
-        logger.warning(f"Yahoo Search fallback error: {e}")
+        err_str = str(e).lower()
+        if not any(x in err_str for x in ["403", "429", "timeout", "connect"]) and err_str.strip():
+            logger.warning(f"Yahoo Search fallback error: {e}")
         
     return links, text_emails
 

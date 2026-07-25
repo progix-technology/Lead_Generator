@@ -542,10 +542,16 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
             push_notification("error", f"Lead processing error for '{name}': {err}", source="autopilot")
             return 0
 
-    import sys
-    # Execute all companies concurrently
-    tasks = [process_company(co) for co in results]
-    completed_counts = await asyncio.gather(*tasks)
+    # Execute all companies concurrently but in batches of 3 to avoid IP rate limits
+    completed_counts = []
+    chunk_size = 3
+    for i in range(0, len(results), chunk_size):
+        chunk = results[i:i+chunk_size]
+        tasks = [process_company(co) for co in chunk]
+        counts = await asyncio.gather(*tasks)
+        completed_counts.extend(counts)
+        if i + chunk_size < len(results):
+            await asyncio.sleep(2.0)
     
     sent_count = sum(completed_counts)
     scanned_count = len(results)

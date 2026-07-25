@@ -142,6 +142,54 @@ def is_valid_email(email: str) -> bool:
     return True
 
 
+def get_best_email(emails: List[str], target_website: str = "") -> Optional[str]:
+    """Select the best email from a list by prioritizing domain matches and generic providers."""
+    if not emails: return None
+    
+    valid_emails = []
+    for e in emails:
+        if e not in valid_emails:
+            valid_emails.append(e)
+            
+    if not target_website: return valid_emails[0]
+    
+    try:
+        from urllib.parse import urlparse
+        domain = urlparse(target_website).netloc.lower().replace('www.', '')
+    except Exception:
+        domain = ""
+        
+    # 1. Exact domain match
+    if domain:
+        for e in valid_emails:
+            if e.endswith(f"@{domain}"): return e
+            
+    # 2. Substring domain match (e.g. crazypets.ae -> crazypets)
+    if domain:
+        base = domain.split('.')[0]
+        if len(base) > 3:
+            for e in valid_emails:
+                if base in e.split('@')[1]: return e
+                
+    # 3. Generic emails (gmail, yahoo, etc.)
+    generics = ['gmail.com', 'yahoo', 'hotmail', 'outlook', 'icloud', 'aol']
+    for e in valid_emails:
+        if any(g in e for g in generics): return e
+        
+    # 4. Filter out common web agency/marketing domains if they don't match the company domain
+    agency_keywords = ['design', 'studio', 'agency', 'media', 'creative', 'digital', 'marketing', 'web', 'tech']
+    filtered = []
+    for e in valid_emails:
+        domain_part = e.split('@')[1] if '@' in e else ''
+        if not any(kw in domain_part for kw in agency_keywords):
+            filtered.append(e)
+            
+    if filtered:
+        return filtered[0]
+        
+    return valid_emails[0]
+
+
 def extract_emails_from_html(html: str) -> List[str]:
     """Extract valid emails from raw HTML without loading images or interactive assets."""
     if not html:
@@ -309,6 +357,7 @@ async def find_email_from_company_website(website_url: str) -> Tuple[Optional[st
             tasks = [scan_single_page(u) for u in candidate_pages[:8]]
             results = await asyncio.gather(*tasks)
 
+            all_emails = []
             for page_url, html in results:
                 if not html:
                     continue
@@ -316,8 +365,7 @@ async def find_email_from_company_website(website_url: str) -> Tuple[Optional[st
                 # Check for emails in HTML content
                 emails = extract_emails_from_html(html)
                 if emails:
-                    logger.info(f"Agent: Found email '{emails[0]}' on page '{page_url}' via HTTPX")
-                    return emails[0], page_url
+                    all_emails.extend(emails)
 
                 # Pull social media connections
                 social_links = extract_social_links_from_html(html, page_url)
@@ -325,6 +373,12 @@ async def find_email_from_company_website(website_url: str) -> Tuple[Optional[st
                     if link not in seen_pages:
                         seen_pages.add(link)
                         social_candidates.append(link)
+
+            if all_emails:
+                best_email = get_best_email(all_emails, website_url)
+                if best_email:
+                    logger.info(f"Agent: Found best email '{best_email}' for website {website_url} via HTTPX")
+                    return best_email, website_url
 
             # If no website email was found, try the scraped social pages
             for social_url in social_candidates[:3]:
@@ -621,7 +675,8 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
             pass
         emails = await scrape_url_for_emails(None, discovered_web)
         if emails:
-            return emails[0], discovered_web, "Discovered Website"
+            best = get_best_email(emails, discovered_web)
+            return best, discovered_web, "Discovered Website"
 
     # 6. Deep Scan Candidate Directory URLs for email matches
     for cand in other_candidate_urls[:5]:

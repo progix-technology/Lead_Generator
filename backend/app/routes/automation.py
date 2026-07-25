@@ -151,15 +151,25 @@ async def get_progress(
 ) -> Any:
     """Retrieve real-time progress logs from MongoDB for cross-process support."""
     try:
-        from app.services.automation_worker import is_batch_running, automation_progress
+        from app.services.automation_worker import is_batch_running, automation_progress, get_active_country_schedule
         config = await repo.get_settings()
         live_logs = config.get("live_logs", []) or automation_progress
         is_running = config.get("enabled", False)
-        return {"progress": live_logs, "is_running": is_running}
+        
+        # Determine actual backend active target
+        active_country_code, active_locations = get_active_country_schedule(config)
+        active_city = active_locations[0] if active_locations else ""
+        
+        return {
+            "progress": live_logs,
+            "is_running": is_running,
+            "active_country": active_country_code,
+            "active_city": active_city
+        }
     except Exception as e:
         logger.warning(f"DB connection glitch in get_progress: {e}")
         from app.services.automation_worker import automation_progress
-        return {"progress": automation_progress, "is_running": True}
+        return {"progress": automation_progress, "is_running": True, "active_country": "USA", "active_city": ""}
 
 @router.post("/resend/{record_id}", response_model=Dict[str, Any])
 async def resend_failed_email(

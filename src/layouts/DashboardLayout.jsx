@@ -63,7 +63,15 @@ const DashboardLayout = () => {
         const prog = await automationService.getProgress();
         if (prog) {
           isRunning = prog.is_running === true;
-          if (prog.current_query) {
+          
+          if (prog.active_country) {
+            country = prog.active_country === 'UAE' ? 'Dubai (UAE)' : prog.active_country;
+            flag = country === 'UK' ? '🇬🇧' : country.includes('UAE') ? '🇦🇪' : '🇺🇸';
+          }
+          
+          if (prog.active_city) {
+            activeCity = prog.active_city;
+          } else if (prog.current_query) {
             const parts = prog.current_query.split(' in ');
             if (parts.length > 1) {
               activeCity = parts[1];
@@ -77,7 +85,7 @@ const DashboardLayout = () => {
       setLiveStatus({
         isRunning,
         activeCountry: country,
-        activeCity: activeCity || (country === 'UK' ? 'London, England' : country === 'USA' ? 'New York, NY' : 'Dubai, UAE'),
+        activeCity: activeCity || (country === 'UK' ? 'London, England' : country.includes('UAE') ? 'Dubai, UAE' : 'New York, NY'),
         countryFlag: flag,
         scheduleTime: timeSlot
       });

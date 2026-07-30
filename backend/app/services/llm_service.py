@@ -54,8 +54,14 @@ def make_openrouter_request(prompt: str, response_format_json: bool = False, max
                         continue
                     return content
         except Exception as e:
-            logger.warning(f"OpenRouter model {model} failed: {e}. Trying next...")
-            last_error = str(e)
+            error_body = ""
+            if hasattr(e, 'read'):
+                try:
+                    error_body = e.read().decode("utf-8")
+                except:
+                    pass
+            logger.warning(f"OpenRouter model {model} failed: {e}. Details: {error_body}. Trying next...")
+            last_error = f"{str(e)} - {error_body}"
             
     logger.error(f"All OpenRouter models failed. Last error: {last_error}")
     return None

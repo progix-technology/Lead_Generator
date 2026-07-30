@@ -52,10 +52,24 @@ class AutomationRepository:
             "Gyms", "Personal Trainers", "Pilates Studios", "Crossfit Gyms",
             "Martial Arts Schools", "Music Schools", "Tutoring Centers", "Test Prep Centers",
             "Preschools", "Private Schools", "Senior Care Services", "Assisted Living Facilities",
-            "Restaurants", "Coffee Shops", "Bakeries", "Food Trucks","Italian Restaurants","Chinese Restaurants","Japanese Restaurants","Mexican Restaurants","Thai Restaurants","Indian Restaurants"
+            "Restaurants", "Coffee Shops", "Bakeries", "Food Trucks", "Italian Restaurants", "Chinese Restaurants", "Japanese Restaurants", "Mexican Restaurants", "Thai Restaurants", "Indian Restaurants",
             "Cafes", "Cloud Kitchens", "Pet Grooming", "Pet Boarding",
-            "Recruitment Agencies",
-            "Staffing Agencies", "Printing Services", "Signage Companies", "Security Camera Installation"
+            "Recruitment Agencies", "Staffing Agencies", "Printing Services", "Signage Companies", "Security Camera Installation",
+            "Dry Cleaners", "Laundromats", "Shoe Repair", "Watch Repair", "Jewelry Stores", "Florists", "Gift Shops", 
+            "Boutiques", "Bridal Shops", "Event Planners", "Wedding Planners", "Party Rental", "Photo Booth Rental", 
+            "Photographers", "Videographers", "Personal Chefs", "Nutritionists", "Dietitians", "Weight Loss Clinics", 
+            "Sleep Clinics", "Fertility Clinics", "Plastic Surgeons", "Podiatrists", "Orthopedic Clinics", "Opticians", 
+            "Hearing Aid Clinics", "Pharmacy", "Medical Supply Stores", "Home Security", "Fire Protection Services", 
+            "Water Filtration", "Well Drilling", "Asphalt Paving", "Excavating Contractors", "Demolition Contractors", 
+            "Scaffolding Rental", "Crane Service", "Dumpster Rental", "Waste Management", "Recycling Centers", 
+            "Scrap Metal", "Auto Salvage", "RV Repair", "Boat Repair", "Motorcycle Repair", "Bicycle Repair", 
+            "Car Audio Installation", "Window Tinting", "Upholstery Shop", "Furniture Repair", "Cabinet Makers", 
+            "Granite Countertops", "Tile Contractors", "Insulation Contractors", "Waterproofing", "Foundation Repair", 
+            "Chimney Sweep", "Appliance Stores", "Mattress Stores", "Furniture Stores", "Antique Stores", "Pawn Shops", 
+            "Sporting Goods", "Art Galleries", "Custom Framing", "Travel Agencies", "Self Storage", "Moving Supplies", 
+            "Notary Public", "Private Investigators", "Security Guards", "Janitorial Services", "Office Cleaning", 
+            "Commercial Cleaning", "Carpet Installation", "Hardwood Flooring", "Blinds and Shades", "Awnings", 
+            "Tool Rental", "Equipment Rental", "Architects", "Surveyors", "Structural Engineers"
         ]
         default_locations = [
             "Sunnyvale, CA", "Santa Clara, CA", "Mountain View, CA", "Palo Alto, CA",

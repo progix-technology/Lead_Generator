@@ -22,10 +22,11 @@ def make_openrouter_request(prompt: str, response_format_json: bool = False, max
     }
     
     models = [
+        "google/gemini-2.0-flash-lite-preview-02-05:free",
         "google/gemini-2.0-pro-exp-02-05:free",
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "nvidia/llama-3.1-nemotron-70b-instruct:free",
-        "google/gemini-2.5-flash"
+        "meta-llama/llama-3.1-8b-instruct:free",
+        "qwen/qwen-2.5-7b-instruct:free",
+        "mistralai/mistral-nemo:free"
     ]
     
     last_error = ""
@@ -37,8 +38,6 @@ def make_openrouter_request(prompt: str, response_format_json: bool = False, max
             ],
             "max_tokens": max_tokens
         }
-        if response_format_json and "llama" not in model:
-            data["response_format"] = {"type": "json_object"}
             
         try:
             req_body = json.dumps(data).encode("utf-8")

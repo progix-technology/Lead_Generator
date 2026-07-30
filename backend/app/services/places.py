@@ -447,10 +447,15 @@ async def scrape_google_maps_fallback(query: str, location: str) -> List[Dict[st
     if nom_results:
         return nom_results
 
+    # 4. Yahoo Search Fallback
+    yahoo_results = await query_yahoo_businesses_fallback(query, location)
+    if yahoo_results:
+        return yahoo_results
+
     if automation_worker.cancel_requested or not should_use_playwright():
         return []  # Skip Playwright on Render — it crashes with GPU/V8 errors
 
-    # 4. Playwright — local development only
+    # 5. Playwright — local development only
     return await asyncio.to_thread(scrape_google_maps_in_thread, query, location)
 
 
@@ -484,6 +489,9 @@ async def query_google_places_api_new(query: str, location: str) -> List[Dict[st
                 if resp.status_code == 200:
                     data = resp.json()
                     places = data.get("places", [])
+                    if not places:
+                        logger.warning(f"Google Places API returned 200 but 0 places. Response: {data}")
+                        
                     for p in places:
                         name = p.get("displayName", {}).get("text")
                         if not name: continue
@@ -500,6 +508,7 @@ async def query_google_places_api_new(query: str, location: str) -> List[Dict[st
                     if not page_token:
                         break
                 else:
+                    logger.warning(f"Google Places API Error: {resp.status_code} - {resp.text}")
                     break
             except Exception as e:
                 logger.warning(f"Google Places API (New) query failed: {e}")
@@ -507,10 +516,8 @@ async def query_google_places_api_new(query: str, location: str) -> List[Dict[st
                 
     if all_companies:
         logger.info(f"Google Places API (New): Found {len(all_companies)} businesses for '{search_q}'")
-        return all_companies
-
-    # Fallback to Yahoo Search Engine if Places API returned 0 leads (e.g. Quota Exceeded 429)
-    return await query_yahoo_businesses_fallback(query, location)
+        
+    return all_companies
 
 async def query_yahoo_businesses_fallback(query: str, location: str) -> List[Dict[str, Any]]:
     """Instant fallback search engine via Yahoo Search when Places API quota is exceeded or fails."""
@@ -567,6 +574,57 @@ async def query_yahoo_businesses_fallback(query: str, location: str) -> List[Dic
         logger.info(f"Yahoo Search Engine Fallback: Found {len(companies)} businesses for '{search_q}'")
     return companies
 
+async def query_ddg_businesses_fallback(query: str, location: str) -> List[Dict[str, Any]]:
+    """Instant fallback search engine via DDG HTML when others fail."""
+    import urllib.parse
+    from bs4 import BeautifulSoup
+
+    search_q = f"{query} {location}".strip()
+    url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote_plus(search_q)}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    }
+    
+    companies = []
+    seen = set()
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers=headers, follow_redirects=True)
+            if resp.status_code in [200, 202]:
+                soup = BeautifulSoup(resp.text, 'html.parser')
+                for a in soup.select('a.result__url'):
+                    href = a.get('href')
+                    if href and href.startswith('http'):
+                        domain = urllib.parse.urlparse(href).netloc.lower()
+                        if any(x in domain for x in ['duckduckgo.com', 'google.com', 'bing.com', 'yahoo.com', 'yelp.', 'tripadvisor.', 'foursquare.']):
+                            continue
+                            
+                        parts = domain.replace("www.", "").split(".")
+                        domain_name = parts[0].replace("-", " ").title() if parts else ""
+                        name = domain_name if domain_name and len(domain_name) > 3 else query.capitalize()
+                        
+                        if href not in seen and len(name) > 2:
+                            seen.add(href)
+                            companies.append({
+                                "name": name,
+                                "industry": query.capitalize(),
+                                "address": location,
+                                "phone_number": "",
+                                "website_url": href,
+                                "rating": 4.5,
+                                "rating_count": 10
+                            })
+    except Exception as e:
+        err_str = str(e).lower()
+        if not any(x in err_str for x in ["403", "429", "timeout", "connect"]) and err_str.strip():
+            logger.warning(f"DDG Search Engine fallback error: {e}")
+        
+    if companies:
+        logger.info(f"DDG Search Engine Fallback: Found {len(companies)} businesses for '{search_q}'")
+    return companies
+
 async def search_companies_google_places(
     query: str, 
     location: str = "", 
@@ -585,6 +643,11 @@ async def search_companies_google_places(
     yahoo_leads = await query_yahoo_businesses_fallback(query, location)
     if yahoo_leads:
         return yahoo_leads, None
+
+    # 2. Second Fallback Fast Path: DDG HTML Search Engine
+    ddg_leads = await query_ddg_businesses_fallback(query, location)
+    if ddg_leads:
+        return ddg_leads, None
 
     from app.services.search_optimizer import (
         expand_keyword, get_city_level_locations, generate_map_search_queries, deduplicate_leads

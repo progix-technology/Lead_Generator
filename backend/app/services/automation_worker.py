@@ -2,6 +2,7 @@ import logging
 import asyncio
 import re
 import traceback
+import html
 from datetime import datetime
 from typing import Dict, Any, List
 
@@ -500,7 +501,7 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                     "location": co_location, "current_platform": current_platform, "service_type": service_type
                 })
 
-            html_body = f"<html><body><p>{_safe_str(body).replace(chr(10), '<br>')}</p></body></html>"
+            html_body = f"<html><body><p>{html.escape(_safe_str(body)).replace(chr(10), '<br>')}</p></body></html>"
 
             new_co = await co_repo.create({
                 "name": name, "industry": category, "location": location or address,
@@ -676,7 +677,7 @@ async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]
             "location": location, "current_platform": "Facebook", "service_type": "custom website design"
         })
 
-    html_body = f"<html><body><p>{_safe_str(body).replace(chr(10), '<br>')}</p></body></html>"
+    html_body = f"<html><body><p>{html.escape(_safe_str(body)).replace(chr(10), '<br>')}</p></body></html>"
 
     log_progress(f"Autopilot Mailer: Dispatching queued email to '{email}'...")
     try:

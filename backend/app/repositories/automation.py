@@ -50,9 +50,9 @@ class AutomationRepository:
             "Med Spa Clinics", "Hair Salons", "Nail Salons", "Barber Shops",
             "Beauty Clinics", "Eyelash Studios", "Tattoo Studios", "Massage Therapy",
             "Gyms", "Personal Trainers", "Pilates Studios", "Crossfit Gyms",
-            "Martial Arts Schools", "Music Schools", "Tutoring Centers", "Test Prep Centers",
+            "Martial Arts Schools", "Music Schools", "Tutoring Centers", "Test Prep Centers","Dance Acadmy","Driving Schools"
             "Preschools", "Private Schools", "Senior Care Services", "Assisted Living Facilities",
-            "Restaurants", "Coffee Shops", "Bakeries", "Food Trucks", "Italian Restaurants", "Chinese Restaurants", "Japanese Restaurants", "Mexican Restaurants", "Thai Restaurants", "Indian Restaurants",
+            "Restaurants", "Coffee Shops", "Bakeries", "Food Trucks", "Italian Restaurants", "Chinese Restaurants", "Japanese Restaurants", "Mexican Restaurants", "Thai Restaurants", "Indian Restaurants","Arebian Restaurants","Asian Restaurants","Seafood Restaurants","Korean Restaurants","Turkish Restaurants",
             "Cafes", "Cloud Kitchens", "Pet Grooming", "Pet Boarding",
             "Recruitment Agencies", "Staffing Agencies", "Printing Services", "Signage Companies", "Security Camera Installation",
             "Dry Cleaners", "Laundromats", "Shoe Repair", "Watch Repair", "Jewelry Stores", "Florists", "Gift Shops", 

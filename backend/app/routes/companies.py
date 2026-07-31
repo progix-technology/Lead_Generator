@@ -2,6 +2,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, Depends, status, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from typing import Any, Dict, Optional
+import html
 
 from app.database.connection import get_database
 from app.repositories.company import CompanyRepository
@@ -178,7 +179,7 @@ async def send_campaign(
                                         .replace("{{service_type}}", service_type)
                                         
         # Convert simple linebreaks to HTML
-        html_body = f"<html><body><p>{body.replace(chr(10), '<br>')}</p></body></html>"
+        html_body = f"<html><body><p>{html.escape(body).replace(chr(10), '<br>')}</p></body></html>"
         
         # Send email
         success = await send_smtp_email(email_addr, subject, html_body, smtp_config=auto_settings)

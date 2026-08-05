@@ -90,7 +90,8 @@ def is_valid_email(email: str) -> bool:
         'unsubscribe', 'unsubcribe', 'subscribe', 'usercentrics', 'cookiebot', 'onetrust', 'cookie', 'optout', 'opt-out',
         'sluurpy', 'restaurantji', 'nicelocal', 'yell.com', '192.com', 'ubereats', 'just-eat', 'deliveroo', 
         'menuwithprice', 'find-us-here', 'allbusiness', 'telepages', 'hudsongrouppage', 'trustpilot', 
-        'glassdoor', 'indeed', 'bark.com', 'bark.co', 'uservoice.com', 'uservoice'
+        'glassdoor', 'indeed', 'bark.com', 'bark.co', 'uservoice.com', 'uservoice',
+        'yango', '2gis', 'justdial', 'zoominfo', 'crunchbase', 'apollo', 'vymaps', 'waze'
     )
     
     if any(email.endswith(suffix) for suffix in invalid_suffixes):
@@ -639,7 +640,9 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
         'merriam-webster.com', 'uidai.gov.in', 'dailymotion.com', 'konglongdao.com',
         'glassdoor.com', 'indeed.com', 'duckduckgo.com', 'google.com', 'yahoo.com',
         'bing.com', 'microsoft.com', 'heavenlydelightsbakery.com', 'localoria.com',
-        'findcoffeeshop.com', 'atly.com', 'roadtrippers.com', 'checkle.com', 'alltopplaces.com'
+        'findcoffeeshop.com', 'atly.com', 'roadtrippers.com', 'checkle.com', 'alltopplaces.com',
+        'yango.com', '2gis.ae', '2gis.com', 'justdial.com', 'waze.com', 'zoominfo.com', 
+        'crunchbase.com', 'apollo.io', 'vymaps.com'
     ]
 
     other_candidate_urls = []
@@ -704,6 +707,24 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
         logger.info(f"Agent: Deep scanning candidate directory for email: {cand}")
         emails = await scrape_url_for_emails(None, cand)
         if emails:
-            return emails[0], discovered_web, "Directory Listing"
+            # Filter out emails that belong to the directory itself
+            try:
+                from urllib.parse import urlparse
+                cand_domain = urlparse(cand).netloc.lower().replace('www.', '')
+                base_domain = cand_domain.split('.')[-2] if len(cand_domain.split('.')) >= 2 else cand_domain
+            except Exception:
+                base_domain = ""
+                
+            valid_cand_emails = []
+            for e in emails:
+                email_domain = e.split('@')[1] if '@' in e else ''
+                # Ignore the directory's own email (e.g. maps@yango.com on yango.com)
+                if base_domain and base_domain in email_domain:
+                    logger.info(f"Agent: Rejected directory email '{e}' from {cand}")
+                    continue
+                valid_cand_emails.append(e)
+                
+            if valid_cand_emails:
+                return valid_cand_emails[0], discovered_web, "Directory Listing"
 
     return None, discovered_web, None

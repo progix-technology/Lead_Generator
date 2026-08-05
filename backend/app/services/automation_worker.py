@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 automation_progress: List[str] = []
 is_batch_running: bool = False
 cancel_requested: bool = False
+sent_emails_cache = set()
 last_log_date = None
 
 def request_cancellation():
@@ -300,7 +301,55 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         results = [r for r in results if r.get("rating_count", 999) <= 5]
         log_progress(f"Autopilot: Targeted 'New Businesses Only' (≤ 5 reviews). Kept {len(results)}/{initial_count} leads.")
 
-    log_progress(f"Autopilot: Found {len(results)} target businesses. Starting website filters...")
+    ENTERPRISE_BRANDS = [
+        'blinkit', 'emirates', 'amazon', 'google', 'facebook', 'meta', 'apple', 'microsoft',
+        'walmart', 'target', 'mcdonalds', 'kfc', 'burger king', 'starbucks', 'subway',
+        'dominos', 'pizza hut', 'papa johns', 'zomato', 'swiggy', 'uber', 'ola', 'lyft',
+        'grab', 'talabat', 'noon', 'carrefour', 'lulu', 'ikea', 'decathlon',
+        'nike', 'adidas', 'puma', 'zara', 'h&m', 'sephora', 'marriott', 'hilton', 'hyatt',
+        'holiday inn', 'radisson', 'fedex', 'dhl', 'ups', 'aramex', 'western union',
+        'tesla', 'samsung', 'lg', 'sony', 'ibm', 'intel', 'cisco', 'oracle', 'sap', 'adobe'
+    ]
+    
+    # Filter out massive enterprise companies and chains
+    pre_filter_count = len(results)
+    filtered_results = []
+    for r in results:
+        name_lower = r.get("name", "").lower()
+        
+        # Skip if name EXACTLY matches or strongly contains a massive global brand
+        is_enterprise = False
+        for brand in ENTERPRISE_BRANDS:
+            # Check for word boundaries to avoid matching "Lulu" inside "Honolulu"
+            import re
+            if re.search(fr'\b{brand}\b', name_lower):
+                is_enterprise = True
+                break
+                
+        if is_enterprise:
+            continue
+            
+        # Filter out locations with massive review counts (likely malls, airports, landmarks, or big chains)
+        if r.get("rating_count", 0) > 1000:
+            continue
+            
+        filtered_results.append(r)
+        
+    results = filtered_results
+    if len(results) < pre_filter_count:
+        log_progress(f"Autopilot: Excluded {pre_filter_count - len(results)} large enterprise/chain leads (e.g. major brands or >1000 reviews).")
+
+    # Deduplicate results in memory to prevent concurrent race conditions
+    unique_results = []
+    seen = set()
+    for r in results:
+        n = r.get("name", "").strip().lower()
+        if n and n not in seen:
+            seen.add(n)
+            unique_results.append(r)
+    results = unique_results
+
+    log_progress(f"Autopilot: Found {len(results)} unique target businesses. Starting website filters...")
     scanned_count = 0
     sent_count = 0
 
@@ -311,10 +360,10 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
         global cancel_requested
         if cancel_requested: return 0
         
-        name = company.get("name", "Unknown Business")
+        name = company.get("name", "Unknown Business").strip()
         
-        # Prevent duplicate outreach: check if already exists in DB early
-        existing = await co_repo.collection.find_one({"name": name})
+        # Prevent duplicate outreach: check if already exists in DB early (case-insensitive)
+        existing = await co_repo.collection.find_one({"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}})
         if existing:
             log_progress(f"Autopilot: Lead '{name}' is already saved in database (skipped)")
             return 0
@@ -423,6 +472,22 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 log_progress(f"Autopilot: No contact emails discovered for '{name}'.")
                 return 0
 
+            # Prevent duplicate outreach to the EXACT SAME EMAIL ADDRESS across different runs or concurrent leads
+            email = email.lower().strip()
+            
+            global sent_emails_cache
+            if email in sent_emails_cache:
+                log_progress(f"Autopilot: Email '{email}' is already queued in the current batch (skipped).")
+                return 0
+                
+            existing_email_record = await repo.collection.find_one({"email": email})
+            if existing_email_record:
+                log_progress(f"Autopilot: Email '{email}' has already been contacted previously (skipped).")
+                sent_emails_cache.add(email)
+                return 0
+                
+            sent_emails_cache.add(email)
+
             facebook_only = current_settings.get("facebook_only", False)
 
             # Redesign leads: always allow Website Contact Page (that's where their email lives)
@@ -468,7 +533,11 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 subject_tmpl = c_tmpl.get("redesign_subject_template") or current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
                 body_tmpl = c_tmpl.get("redesign_body_template") or current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
                 website_for_template = website_url or "their website"
-                sug_bullets = "\n".join([f"• {s}" for s in suggestions]) if suggestions else "• Outdated responsive layout and performance bottlenecks."
+                
+                if suggestions:
+                    sug_bullets = "<ul>" + "".join([f"<li>{s}</li>" for s in suggestions]) + "</ul>"
+                else:
+                    sug_bullets = "<ul><li>Outdated responsive layout and performance bottlenecks.</li></ul>"
 
                 subject = _apply_template(subject_tmpl, {
                     "company": name, "first_name": greeting_name, "website": website_for_template,
@@ -501,7 +570,8 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                     "location": co_location, "current_platform": current_platform, "service_type": service_type
                 })
 
-            html_body = f"<html><body><p>{html.escape(_safe_str(body)).replace(chr(10), '<br>')}</p></body></html>"
+            # Remove html.escape so user templates containing <b>, <a>, etc., render correctly without breaking.
+            html_body = f"<html><body><p>{_safe_str(body).replace(chr(10), '<br>')}</p></body></html>"
 
             new_co = await co_repo.create({
                 "name": name, "industry": category, "location": location or address,
@@ -627,30 +697,19 @@ async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]
     c_tmpl = country_templates.get(target_country) or country_templates.get("USA") or {}
     
     if is_redesign:
-        openrouter_key = current_settings.get("openrouter_api_key")
         suggestions = meta.get("suggestions") or ["Outdated responsive layout and performance bottlenecks."]
         perf_score = meta.get("performance_score") or 64
         ui_score = meta.get("ui_score") or 58
         seo_score = meta.get("seo_score") or 62
 
-        ai_generated = None
-        if openrouter_key:
-            from app.services.llm_service import generate_ai_redesign_email
-            log_progress(f"Autopilot Mailer: Generating AI personalized redesign email for {name} based on their website flaws...")
-            ai_generated = await generate_ai_redesign_email(
-                company_name=name, first_name=first_name, website=website, industry=category, location=location,
-                suggestions=suggestions, performance_score=perf_score, ui_score=ui_score, seo_score=seo_score,
-                custom_api_key=openrouter_key
-            )
-
-        if ai_generated:
-            subject = ai_generated["subject"]
-            body = ai_generated["body"]
+        # Fallback to static template
+        subject_tmpl = c_tmpl.get("redesign_subject_template") or current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
+        body_tmpl = c_tmpl.get("redesign_body_template") or current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
+        
+        if isinstance(suggestions, list):
+            sug_bullets = "<ul>" + "".join([f"<li>{s}</li>" for s in suggestions]) + "</ul>"
         else:
-            # Fallback to static template
-            subject_tmpl = c_tmpl.get("redesign_subject_template") or current_settings.get("redesign_subject_template") or "Quick suggestion for {{company}} about your website"
-            body_tmpl = c_tmpl.get("redesign_body_template") or current_settings.get("redesign_body_template") or "Hello {{first_name}}..."
-            sug_bullets = "\n".join([f"• {s}" for s in suggestions]) if isinstance(suggestions, list) else suggestions
+            sug_bullets = suggestions
             
             subject = _apply_template(subject_tmpl, {
                 "company": name, "first_name": first_name, "website": website,
@@ -677,7 +736,7 @@ async def run_mailer_cycle(db, exclude_redesign: bool = False) -> Dict[str, Any]
             "location": location, "current_platform": "Facebook", "service_type": "custom website design"
         })
 
-    html_body = f"<html><body><p>{html.escape(_safe_str(body)).replace(chr(10), '<br>')}</p></body></html>"
+    html_body = f"<html><body><p>{_safe_str(body).replace(chr(10), '<br>')}</p></body></html>"
 
     log_progress(f"Autopilot Mailer: Dispatching queued email to '{email}'...")
     try:

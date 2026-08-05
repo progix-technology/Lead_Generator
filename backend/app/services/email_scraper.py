@@ -638,7 +638,7 @@ async def find_email_for_company(company_name: str, location: str, phone_number:
         'companycheck.com', 'dnb.com', 'bizzlist.com', 'youtube.com', 'youtubekids.com',
         'wikipedia.org', 'wikihow.com', 'softonic.com', 'overleaf.com', 'cermati.com',
         'merriam-webster.com', 'uidai.gov.in', 'dailymotion.com', 'konglongdao.com',
-        'glassdoor.com', 'indeed.com', 'duckduckgo.com', 'google.com', 'yahoo.com',
+        'glassdoor.com', 'indeed.com', 'duckduckgo.com', 'google.', 'yahoo.com',
         'bing.com', 'microsoft.com', 'heavenlydelightsbakery.com', 'localoria.com',
         'findcoffeeshop.com', 'atly.com', 'roadtrippers.com', 'checkle.com', 'alltopplaces.com',
         'yango.com', '2gis.ae', '2gis.com', 'justdial.com', 'waze.com', 'zoominfo.com', 

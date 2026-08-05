@@ -75,7 +75,7 @@ async def perform_live_website_audit(url: str) -> Dict[str, Any]:
             title_match = re.search(r"<title\b[^>]*>(.*?)</title>", html, re.I | re.S)
             if not title_match or not title_match.group(1).strip():
                 seo_score = max(0, seo_score - 30)
-                suggestions.append("Missing page <title> tag in HTML head.")
+                suggestions.append("Missing page 'title' tag in HTML head.")
             elif len(title_match.group(1).strip()) < 15:
                 seo_score = max(0, seo_score - 15)
                 suggestions.append("Short or unoptimized page title tag (<15 characters).")
@@ -91,7 +91,7 @@ async def perform_live_website_audit(url: str) -> Dict[str, Any]:
             h1_match = re.search(r"<h1\b[^>]*>(.*?)</h1>", html, re.I | re.S)
             if not h1_match or not h1_match.group(1).strip():
                 seo_score = max(0, seo_score - 20)
-                suggestions.append("Missing primary <h1> heading tag for Google hierarchy.")
+                suggestions.append("Missing primary H1 heading tag for Google hierarchy.")
 
             # E. Schema.org / Structured Data Check
             if "application/ld+json" not in html_lower and 'itemtype="http://schema.org' not in html_lower:

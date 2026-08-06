@@ -480,7 +480,7 @@ async def run_automation_cycle(db, batch_targets: list = None) -> Dict[str, Any]
                 log_progress(f"Autopilot: Email '{email}' is already queued in the current batch (skipped).")
                 return 0
                 
-            existing_email_record = await repo.collection.find_one({"email": email})
+            existing_email_record = await repo.records_col.find_one({"email": email})
             if existing_email_record:
                 log_progress(f"Autopilot: Email '{email}' has already been contacted previously (skipped).")
                 sent_emails_cache.add(email)

@@ -17,6 +17,7 @@ import {
 export default function Dashboard() {
   const [companies, setCompanies] = useState([]);
   const [records, setRecords] = useState([]);
+  const [queueStats, setQueueStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -34,14 +35,16 @@ export default function Dashboard() {
       setLoading(true);
       setError('');
 
-      // Fetch saved leads and automation dispatches
-      const [leadsRes, recordsRes] = await Promise.all([
+      // Fetch saved leads, automation dispatches, and dynamic queue stats
+      const [leadsRes, recordsRes, queueRes] = await Promise.all([
         companyService.getCompanies(0, 1000),
-        automationService.getRecords(0, 1000)
+        automationService.getRecords(0, 1000),
+        automationService.getQueueStatus()
       ]);
 
       setCompanies(leadsRes.data || []);
       setRecords(recordsRes.data || []);
+      setQueueStats(queueRes || null);
     } catch (err) {
       console.error(err);
       setError('Failed to load dashboard data. Please try again.');
@@ -64,11 +67,11 @@ export default function Dashboard() {
     return 'United States';
   };
 
-  // 1. Compute Top Level Metrics
-  const totalLeads = companies.length;
-  const totalSent = records.length;
-  const successCount = records.filter(r => r.status === 'Sent').length;
-  const failCount = records.filter(r => r.status === 'Failed').length;
+  // 1. Compute Top Level Metrics (Dynamic from backend stats)
+  const totalLeads = queueStats?.total_leads ?? companies.length;
+  const totalSent = queueStats?.total_attempts ?? records.length;
+  const successCount = queueStats?.total_sent ?? records.filter(r => r.status === 'Sent').length;
+  const failCount = queueStats?.total_failed ?? records.filter(r => r.status === 'Failed').length;
   const successRate = totalSent > 0 ? Math.round((successCount / totalSent) * 100) : 0;
 
   // 2. Compute Unique Categories and Locations from records for filtering

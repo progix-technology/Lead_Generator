@@ -93,6 +93,7 @@ async def get_records(
 @router.get("/queue-status", response_model=Dict[str, Any])
 async def get_queue_status(
     repo: AutomationRepository = Depends(get_automation_repo),
+    db: AsyncIOMotorDatabase = Depends(get_database),
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> Any:
     """Retrieve the real-time queue counts for the live dashboard."""
@@ -102,11 +103,20 @@ async def get_queue_status(
         pending_redesign_count = await repo.count_pending_redesign_records()
         sent_today = await repo.count_records_today()
         
+        total_leads = await db.companies.count_documents({})
+        total_sent = await repo.records_col.count_documents({"status": "Sent"})
+        total_failed = await repo.records_col.count_documents({"status": "Failed"})
+        total_attempts = total_sent + total_failed
+        
         return {
             "pending_count": pending_count,
             "pending_standard_count": pending_standard_count,
             "pending_redesign_count": pending_redesign_count,
-            "sent_today": sent_today
+            "sent_today": sent_today,
+            "total_leads": total_leads,
+            "total_sent": total_sent,
+            "total_failed": total_failed,
+            "total_attempts": total_attempts
         }
     except Exception as e:
         logger.warning(f"DB connection glitch in get_queue_status: {e}")
@@ -114,7 +124,11 @@ async def get_queue_status(
             "pending_count": 0,
             "pending_standard_count": 0,
             "pending_redesign_count": 0,
-            "sent_today": 0
+            "sent_today": 0,
+            "total_leads": 0,
+            "total_sent": 0,
+            "total_failed": 0,
+            "total_attempts": 0
         }
 
 @router.post("/trigger", response_model=Dict[str, Any])
